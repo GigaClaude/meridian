@@ -13,7 +13,6 @@ import json
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from pathlib import Path
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -23,7 +22,7 @@ from .config import config
 
 logger = logging.getLogger("meridian.email")
 
-TOKEN_PATH = Path("/mnt/global/home/claude/.gmail_token.json")
+TOKEN_PATH = config.gmail_token_path
 
 
 def _get_creds() -> Credentials | None:

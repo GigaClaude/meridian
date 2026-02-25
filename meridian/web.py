@@ -198,20 +198,23 @@ async def api_recall(req: RecallRequest):
 @app.post("/api/memory/remember")
 async def api_remember(req: RememberRequest):
     """Store a new memory."""
-    from meridian.workers import BackgroundWorkers
-    workers = BackgroundWorkers(storage)
-    result = await storage.remember(
-        {
-            "content": req.content,
-            "type": req.type,
-            "tags": req.tags,
-            "importance": req.importance,
-            "source": req.source,
-            "related_to": [],
-        },
-        workers,
-    )
-    return result
+    from meridian.workers import WorkerPool
+    workers = WorkerPool()
+    try:
+        result = await storage.remember(
+            {
+                "content": req.content,
+                "type": req.type,
+                "tags": req.tags,
+                "importance": req.importance,
+                "source": req.source,
+                "related_to": [],
+            },
+            workers,
+        )
+        return result
+    finally:
+        await workers.close()
 
 
 @app.get("/api/memory/briefing")

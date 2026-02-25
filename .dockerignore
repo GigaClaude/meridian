@@ -1,0 +1,11 @@
+.git
+__pycache__
+*.pyc
+.env
+*.db
+*.log
+.claude
+audit/
+episodes/
+*.gz
+.mcp.json

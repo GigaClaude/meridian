@@ -53,7 +53,7 @@ async def lifespan(server: FastMCP):
     if config.gmail_address:
         logger.info(f"Email configured: {config.gmail_address}")
     else:
-        logger.warning("Email not configured — set GMAIL_ADDRESS and GMAIL_APP_PASSWORD")
+        logger.warning("Email not configured — set GMAIL_ADDRESS and GMAIL_TOKEN_PATH")
     logger.info("Meridian MCP server ready — all subsystems initialized")
     yield
     logger.info("Meridian MCP server shutting down...")

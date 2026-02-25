@@ -28,12 +28,12 @@ class MeridianConfig:
     # Web Server
     host: str = field(default_factory=lambda: os.getenv("MERIDIAN_HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: int(os.getenv("MERIDIAN_PORT", "7891")))
-    mcp_port: int = field(default_factory=lambda: int(os.getenv("MERIDIAN_MCP_PORT", "7891")))
     working_dir: Path = field(default_factory=lambda: Path(os.getenv("MERIDIAN_WORKING_DIR", str(Path.home()))))
 
     # Gmail
     gmail_address: str = field(default_factory=lambda: os.getenv("GMAIL_ADDRESS", ""))
     gmail_app_password: str = field(default_factory=lambda: os.getenv("GMAIL_APP_PASSWORD", ""))
+    gmail_token_path: Path = field(default_factory=lambda: Path(os.getenv("GMAIL_TOKEN_PATH", str(Path.home() / ".gmail_token.json"))))
 
     # Tuning
     hot_memory_max_tokens: int = field(default_factory=lambda: int(os.getenv("HOT_MEMORY_MAX_TOKENS", "2000")))

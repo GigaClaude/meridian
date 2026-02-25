@@ -1,6 +1,6 @@
 [project]
 name = "meridian"
-version = "0.2.0"
+version = "0.3.0"
 description = "Persistent Memory Architecture for Claude Code — Remember everything. Load only what matters."
 requires-python = ">=3.11"
 dependencies = [
@@ -12,8 +12,9 @@ dependencies = [
     "pydantic>=2.9.0",
     "websockets>=13.0",
     "mcp>=1.0.0",
-    "aiosmtplib>=5.0.0",
-    "aioimaplib>=2.0.0",
+    "google-auth>=2.0.0",
+    "google-api-python-client>=2.0.0",
+    "PyYAML>=6.0",
 ]
 
 [project.scripts]

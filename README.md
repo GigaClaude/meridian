@@ -80,7 +80,26 @@ Everything runs locally. No API keys needed for the memory layer. Your data stay
 
 ## Quick Start
 
-### 1. Install
+### Option A: Docker (recommended)
+
+```bash
+git clone https://github.com/GigaClaude/meridian.git
+cd meridian
+docker compose up -d
+```
+
+First run pulls ~10GB of models — grab a coffee. Once all three services are healthy:
+
+```bash
+claude mcp add meridian -- docker compose exec -T meridian python -m meridian.mcp_server
+```
+
+> **GPU required.** The Ollama container needs NVIDIA Container Toolkit installed on the host.
+> See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
+
+### Option B: Manual install
+
+#### 1. Install
 
 ```bash
 git clone https://github.com/GigaClaude/meridian.git
@@ -88,14 +107,14 @@ cd meridian
 pip install -e .
 ```
 
-### 2. Pull models
+#### 2. Pull models
 
 ```bash
 ollama pull nomic-embed-text       # embeddings (768-dim, ~270MB)
 ollama pull qwen2.5-coder:14b     # gateway + workers (~9GB)
 ```
 
-### 3. Start services
+#### 3. Start services
 
 ```bash
 # Qdrant (vector DB — single binary, no Docker needed)
@@ -105,7 +124,7 @@ qdrant --config-path ~/.meridian/qdrant_config.yaml &
 ollama serve &
 ```
 
-### 4. Connect to Claude Code
+#### 4. Connect to Claude Code
 
 ```bash
 claude mcp add meridian -- python3 -m meridian.mcp_server
@@ -125,7 +144,7 @@ Or add to `.mcp.json` in your project:
 }
 ```
 
-### 5. Add to CLAUDE.md
+### Add to CLAUDE.md
 
 ```markdown
 ## On Session Start
