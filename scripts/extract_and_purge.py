@@ -12,6 +12,7 @@ Usage:
 import asyncio
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -37,7 +38,12 @@ RULES:
 3. Preserve specifics: ports, paths, commands, rationale, error messages
 4. Skip: greetings, reactions, filler ("nice!", "let me check"), questions without answers
 5. If a fragment contains NO useful facts, skip it entirely
-6. Format: one fact per line, prefixed with "FACT: "
+6. Format: one fact per line, prefixed with "FACT[N]: " where N is importance 1-5:
+   - 5: Critical architecture decisions, standing directives, identity/personality
+   - 4: Important patterns, technical decisions with rationale, gotchas
+   - 3: Useful config, port assignments, tool preferences, hardware details
+   - 2: General notes, observations, minor details
+   - 1: Barely worth keeping, low-signal
 7. If there are ZERO useful facts across all fragments, respond with exactly: EMPTY
 
 FRAGMENTS:
@@ -122,19 +128,27 @@ async def run(dry_run: bool = False):
             batch_facts = []
             for line in result.strip().split("\n"):
                 line = line.strip()
-                if line.startswith("FACT:"):
+                # Parse FACT[N]: format (importance-tagged)
+                imp_match = re.match(r"FACT\[(\d)\]:\s*(.*)", line)
+                if imp_match:
+                    importance = int(imp_match.group(1))
+                    fact = imp_match.group(2).strip()
+                    if fact:
+                        batch_facts.append((fact, importance))
+                elif line.startswith("FACT:"):
+                    # Fallback for old format without importance
                     fact = line[5:].strip()
                     if fact:
-                        batch_facts.append(fact)
+                        batch_facts.append((fact, 2))
                 elif line and not line.startswith("EMPTY"):
                     # Sometimes model doesn't use FACT: prefix
                     if len(line) > 20 and not line.startswith("[") and not line.startswith("---"):
-                        batch_facts.append(line)
+                        batch_facts.append((line, 2))
 
             if batch_facts:
                 print(f"  Extracted {len(batch_facts)} facts:")
-                for fact in batch_facts:
-                    print(f"    → {fact[:100]}")
+                for fact, imp in batch_facts:
+                    print(f"    → [imp={imp}] {fact[:100]}")
                 extracted_facts.extend(batch_facts)
 
         ids_to_delete.extend(batch_ids)
@@ -147,13 +161,13 @@ async def run(dry_run: bool = False):
     print(f"Entries to purge: {len(ids_to_delete)}")
 
     stored_count = 0
-    for fact in extracted_facts:
+    for fact, importance in extracted_facts:
         try:
             result = await storage.remember({
                 "content": fact,
                 "type": "note",
                 "tags": ["extracted", "cleanup"],
-                "importance": 2,
+                "importance": importance,
                 "source": "audit_extraction",
             })
             stored_count += 1
