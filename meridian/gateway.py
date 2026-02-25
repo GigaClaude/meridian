@@ -41,11 +41,24 @@ IDENTITY_PATTERNS = [
     "what's your name", "your name", "my name",
 ]
 
+TASK_STATE_PATTERNS = [
+    "current task", "what am i working on", "work in progress",
+    "what was i doing", "active work", "task state",
+    "what are we doing", "where did i leave off",
+    "last checkpoint", "session state",
+]
+
 
 def _is_identity_query(query: str) -> bool:
     """Detect self-referential or identity queries."""
     q = query.lower().strip()
     return any(p in q for p in IDENTITY_PATTERNS)
+
+
+def _is_task_state_query(query: str) -> bool:
+    """Detect queries about current task or work in progress."""
+    q = query.lower().strip()
+    return any(p in q for p in TASK_STATE_PATTERNS)
 
 
 def _rerank(results: list[dict]) -> list[dict]:
@@ -194,6 +207,18 @@ Output the YAML briefing now:"""
         3. No matches → pure vector search
         Results are reranked by importance before synthesis.
         """
+        # Inject checkpoint context for task-state queries
+        checkpoint_context = ""
+        if _is_task_state_query(query):
+            checkpoint = await storage.get_latest_checkpoint()
+            if checkpoint:
+                checkpoint_context = (
+                    f"\nLATEST CHECKPOINT ({checkpoint['created_at']}):\n"
+                    f"  Task: {checkpoint['task_state']}\n"
+                    f"  Next steps: {', '.join(checkpoint['next_steps']) if checkpoint['next_steps'] else 'none'}\n"
+                    f"  Working set: {checkpoint['working_set']}\n"
+                )
+
         # Route identity queries to personality memories
         if _is_identity_query(query):
             matched_tags = ["personality", "identity"]
@@ -247,7 +272,10 @@ Output the YAML briefing now:"""
 
         # Build context for synthesis
         tag_note = f"\nTAG FILTER: {', '.join(matched_tags)}" if matched_tags else ""
-        context = f"QUERY: {query}\nSCOPE: {scope}{tag_note}\n\nSEARCH RESULTS (newest first):\n"
+        context = f"QUERY: {query}\nSCOPE: {scope}{tag_note}\n"
+        if checkpoint_context:
+            context += f"\n{checkpoint_context}\n"
+        context += "\nSEARCH RESULTS (newest first):\n"
         for r in raw_results:
             source_tag = f", source: {r['source']}" if r.get('source') else ""
             # Include age for temporal reasoning
