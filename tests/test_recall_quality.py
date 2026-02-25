@@ -27,7 +27,7 @@ from meridian.config import MeridianConfig
 FIXTURES = [
     {
         "id": "mem_fix_personality_01",
-        "content": "GigaClaude is a peer to Chris, not an assistant. Direct communication, occasional cursing when it fits, dry observational humor. Challenges Chris when wrong.",
+        "content": "The AI assistant has a direct communication style. Peer-level interaction, challenges incorrect assumptions, concise technical responses.",
         "type": "pattern",
         "tags": ["personality", "identity", "tone"],
         "importance": 5,
@@ -76,9 +76,9 @@ FIXTURES = [
     },
     {
         "id": "mem_fix_entity_01",
-        "content": "Chris is a senior infrastructure engineer. Manages 100k+ servers, runs home lab with Docker/Podman/GPUs. Trusts GigaClaude with root access and API keys. Email: apresence@gmail.com.",
+        "content": "The user is a senior infrastructure engineer. Manages large-scale server environments, runs home lab with Docker/Podman/GPUs. Has granted elevated permissions and API key access.",
         "type": "entity",
-        "tags": ["chris", "identity", "person"],
+        "tags": ["user", "identity", "person"],
         "importance": 5,
         "source": "giga",
     },
@@ -100,7 +100,7 @@ FIXTURES = [
     },
     {
         "id": "mem_fix_note_01",
-        "content": "Gmail OAuth2 token at /mnt/global/home/claude/.gmail_token.json. Uses google-api-python-client with auto-refresh. Email module at meridian/email.py.",
+        "content": "Gmail OAuth2 token at ~/.config/meridian/gmail_token.json. Uses google-api-python-client with auto-refresh. Email module at meridian/email.py.",
         "type": "note",
         "tags": ["gmail", "oauth2", "email", "credentials"],
         "importance": 3,
@@ -115,9 +115,9 @@ TEST_QUERIES = [
         "query": "personality identity who am I",
         "scope": "all",
         "max_tokens": 400,
-        "expect_fragments": ["peer", "Chris", "direct"],
+        "expect_fragments": ["direct", "peer", "communication"],
         "min_citations": 0,  # Personality queries often skip inline citations
-        "description": "Identity query should describe GigaClaude's personality",
+        "description": "Identity query should describe the assistant's personality",
     },
     {
         "query": "what ports are services running on",
