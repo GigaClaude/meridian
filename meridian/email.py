@@ -1,35 +1,80 @@
-"""Email client — async Gmail send/receive via App Password.
+"""Email client — Gmail API with OAuth2.
 
-Uses aiosmtplib for sending and aioimaplib for IMAP inbox access.
-Credentials come from config (env vars or .accounts file).
+Uses google-api-python-client for send/read via Gmail API.
+OAuth2 token comes from a token file (generated via one-time auth flow).
+Auto-refreshes expired tokens.
 """
 
 from __future__ import annotations
 
-import email
+import asyncio
+import base64
 import json
 import logging
-from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Optional
 
-import aiosmtplib
-from aioimaplib import IMAP4_SSL
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 
 from .config import config
 
 logger = logging.getLogger("meridian.email")
 
+TOKEN_PATH = Path("/mnt/global/home/claude/.gmail_token.json")
+
+
+def _get_creds() -> Credentials | None:
+    """Load and refresh OAuth2 credentials."""
+    if not TOKEN_PATH.exists():
+        logger.warning(f"Gmail token not found at {TOKEN_PATH}")
+        return None
+
+    try:
+        data = json.loads(TOKEN_PATH.read_text())
+        creds = Credentials(
+            token=data.get("token"),
+            refresh_token=data.get("refresh_token"),
+            token_uri=data.get("token_uri"),
+            client_id=data.get("client_id"),
+            client_secret=data.get("client_secret"),
+            scopes=data.get("scopes"),
+        )
+
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            # Save refreshed token
+            data["token"] = creds.token
+            TOKEN_PATH.write_text(json.dumps(data, indent=2))
+            logger.info("Gmail token refreshed")
+
+        return creds
+    except Exception as e:
+        logger.error(f"Failed to load Gmail credentials: {e}")
+        return None
+
+
+def _get_service():
+    """Build Gmail API service."""
+    creds = _get_creds()
+    if not creds:
+        return None
+    return build("gmail", "v1", credentials=creds, cache_discovery=False)
+
 
 class EmailClient:
-    """Async Gmail client using App Password auth."""
+    """Gmail API client with OAuth2."""
 
     def __init__(self):
         self.address = config.gmail_address
-        self.password = config.gmail_app_password
-        self._imap: IMAP4_SSL | None = None
+        self._service = None
+
+    def _get_service(self):
+        if self._service is None:
+            self._service = _get_service()
+        return self._service
 
     async def send(
         self,
@@ -38,9 +83,10 @@ class EmailClient:
         body: str,
         cc: str | None = None,
     ) -> dict:
-        """Send an email via Gmail SMTP."""
-        if not self.address or not self.password:
-            return {"sent": False, "error": "Gmail credentials not configured"}
+        """Send an email via Gmail API."""
+        service = self._get_service()
+        if not service:
+            return {"sent": False, "error": "Gmail not configured (missing OAuth token)"}
 
         msg = MIMEMultipart()
         msg["From"] = f"GigaClaude <{self.address}>"
@@ -48,36 +94,22 @@ class EmailClient:
         msg["Subject"] = subject
         if cc:
             msg["Cc"] = cc
-
         msg.attach(MIMEText(body, "plain"))
 
-        recipients = [to]
-        if cc:
-            recipients.extend(addr.strip() for addr in cc.split(","))
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
 
         try:
-            await aiosmtplib.send(
-                msg,
-                hostname="smtp.gmail.com",
-                port=587,
-                start_tls=True,
-                username=self.address,
-                password=self.password,
-                recipients=recipients,
+            result = await asyncio.to_thread(
+                service.users().messages().send(
+                    userId="me", body={"raw": raw}
+                ).execute
             )
             logger.info(f"Email sent to {to}: {subject}")
-            return {"sent": True, "to": to, "subject": subject}
+            return {"sent": True, "to": to, "subject": subject, "id": result.get("id")}
         except Exception as e:
             logger.error(f"Email send failed: {e}")
+            self._service = None  # Reset on error
             return {"sent": False, "error": str(e)}
-
-    async def _get_imap(self) -> IMAP4_SSL:
-        """Get or create IMAP connection."""
-        if self._imap is None:
-            self._imap = IMAP4_SSL(host="imap.gmail.com")
-            await self._imap.wait_hello_from_server()
-            await self._imap.login(self.address, self.password)
-        return self._imap
 
     async def fetch_inbox(
         self,
@@ -85,101 +117,94 @@ class EmailClient:
         unread_only: bool = True,
     ) -> list[dict]:
         """Fetch recent emails from inbox."""
-        if not self.address or not self.password:
+        service = self._get_service()
+        if not service:
             return []
 
         try:
-            imap = await self._get_imap()
-            await imap.select("INBOX")
+            query = "in:inbox"
+            if unread_only:
+                query += " is:unread"
 
-            search_criteria = "UNSEEN" if unread_only else "ALL"
-            _, data = await imap.search(search_criteria)
+            result = await asyncio.to_thread(
+                service.users().messages().list(
+                    userId="me", q=query, maxResults=limit
+                ).execute
+            )
 
-            if not data or not data[0]:
+            messages = result.get("messages", [])
+            if not messages:
                 return []
 
-            # Get UIDs — most recent first
-            uids = data[0].split()
-            uids = uids[-limit:]  # last N
-            uids.reverse()
+            inbox = []
+            for msg_ref in messages:
+                msg = await asyncio.to_thread(
+                    service.users().messages().get(
+                        userId="me", id=msg_ref["id"], format="metadata",
+                        metadataHeaders=["From", "Subject", "Date"],
+                    ).execute
+                )
 
-            messages = []
-            for uid in uids:
-                _, msg_data = await imap.fetch(uid.decode(), "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)] UID)")
-                if msg_data and len(msg_data) >= 2:
-                    raw = msg_data[1]
-                    if isinstance(raw, bytes):
-                        parsed = email.message_from_bytes(raw)
-                    else:
-                        parsed = email.message_from_string(str(raw))
+                headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
+                inbox.append({
+                    "uid": msg_ref["id"],
+                    "from": headers.get("From", "unknown"),
+                    "subject": headers.get("Subject", "(no subject)"),
+                    "date": headers.get("Date", ""),
+                })
 
-                    messages.append({
-                        "uid": uid.decode(),
-                        "from": parsed.get("From", "unknown"),
-                        "subject": parsed.get("Subject", "(no subject)"),
-                        "date": parsed.get("Date", ""),
-                    })
-
-            return messages
+            return inbox
 
         except Exception as e:
             logger.error(f"Inbox fetch failed: {e}")
-            self._imap = None  # Reset connection on error
+            self._service = None
             return []
 
     async def read_email(self, uid: str) -> dict:
-        """Read full email body by UID."""
-        if not self.address or not self.password:
-            return {"error": "Gmail credentials not configured"}
+        """Read full email by message ID."""
+        service = self._get_service()
+        if not service:
+            return {"error": "Gmail not configured"}
 
         try:
-            imap = await self._get_imap()
-            await imap.select("INBOX")
+            msg = await asyncio.to_thread(
+                service.users().messages().get(
+                    userId="me", id=uid, format="full",
+                ).execute
+            )
 
-            _, msg_data = await imap.fetch(uid, "(RFC822)")
-            if not msg_data or len(msg_data) < 2:
-                return {"error": f"Message {uid} not found"}
-
-            raw = msg_data[1]
-            if isinstance(raw, bytes):
-                parsed = email.message_from_bytes(raw)
-            else:
-                parsed = email.message_from_string(str(raw))
+            headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
 
             # Extract body
             body = ""
-            if parsed.is_multipart():
-                for part in parsed.walk():
-                    content_type = part.get_content_type()
-                    if content_type == "text/plain":
-                        payload = part.get_payload(decode=True)
-                        if payload:
-                            body = payload.decode("utf-8", errors="replace")
+            payload = msg.get("payload", {})
+
+            if "parts" in payload:
+                for part in payload["parts"]:
+                    if part.get("mimeType") == "text/plain":
+                        data = part.get("body", {}).get("data", "")
+                        if data:
+                            body = base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
                             break
-            else:
-                payload = parsed.get_payload(decode=True)
-                if payload:
-                    body = payload.decode("utf-8", errors="replace")
+            elif payload.get("body", {}).get("data"):
+                body = base64.urlsafe_b64decode(
+                    payload["body"]["data"]
+                ).decode("utf-8", errors="replace")
 
             return {
                 "uid": uid,
-                "from": parsed.get("From", "unknown"),
-                "to": parsed.get("To", ""),
-                "subject": parsed.get("Subject", "(no subject)"),
-                "date": parsed.get("Date", ""),
-                "body": body[:5000],  # Cap body length
+                "from": headers.get("From", "unknown"),
+                "to": headers.get("To", ""),
+                "subject": headers.get("Subject", "(no subject)"),
+                "date": headers.get("Date", ""),
+                "body": body[:5000],
             }
 
         except Exception as e:
             logger.error(f"Email read failed: {e}")
-            self._imap = None
+            self._service = None
             return {"error": str(e)}
 
     async def close(self):
-        """Close IMAP connection."""
-        if self._imap:
-            try:
-                await self._imap.logout()
-            except Exception:
-                pass
-            self._imap = None
+        """Cleanup."""
+        self._service = None
