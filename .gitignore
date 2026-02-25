@@ -26,3 +26,4 @@ episodes/
 # OS
 .DS_Store
 Thumbs.db
+recall_quality_report.json
