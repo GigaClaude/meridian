@@ -93,22 +93,28 @@ Everything runs locally. No API keys needed for the memory layer itself. Your da
 ```bash
 git clone https://github.com/GigaClaude/meridian.git
 cd meridian
-docker compose up -d
+docker compose --profile gpu up -d
 ```
 
-First run pulls ~10GB of models — grab a coffee. Once all three services are healthy:
+First run pulls ~10GB of models — grab a coffee. Once all services are healthy:
 
 ```bash
 claude mcp add meridian -- docker compose exec -T meridian python -m meridian.mcp_server
 ```
 
+**Already have Ollama running?** Skip the GPU profile and point to your host instance:
+
+```bash
+OLLAMA_URL=http://host.docker.internal:11434 docker compose up -d
+```
+
 To use the web UI, pass your API key:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... docker compose up -d
+ANTHROPIC_API_KEY=sk-ant-... docker compose --profile gpu up -d
 ```
 
-> **GPU required.** The Ollama container needs NVIDIA Container Toolkit installed on the host.
+> **GPU profile** requires NVIDIA Container Toolkit on the host.
 > See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
 
 ### Option B: Manual install

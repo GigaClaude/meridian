@@ -2,6 +2,7 @@ services:
   ollama:
     image: ollama/ollama:latest
     runtime: nvidia
+    profiles: ["gpu"]
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
@@ -30,14 +31,12 @@ services:
   meridian:
     build: .
     depends_on:
-      ollama:
-        condition: service_healthy
       qdrant:
         condition: service_healthy
     ports:
       - "7891:7891"
     environment:
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - QDRANT_URL=http://qdrant:6333
       - MERIDIAN_DATA_DIR=/data
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
