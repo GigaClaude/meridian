@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
+dist/
+build/
+.meridian/
+*.db
+*.log
+
+# Data & audit outputs (contain real memory content)
+audit_report.json
+extraction_log.json
+episodes/
+
+# Credentials
+.accounts
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

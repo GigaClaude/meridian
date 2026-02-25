@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Meridian</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-dim: #1f6feb;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* ── Layout ── */
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+
+  header .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+  }
+
+  .status-dot.connected { background: var(--green); }
+  .status-dot.connecting { background: var(--yellow); animation: pulse 1s infinite; }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  #project-select {
+    background: var(--bg-tertiary);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+  }
+
+  /* ── Messages ── */
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+  }
+
+  .message {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    line-height: 1.6;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .message.user {
+    align-self: flex-end;
+    background: var(--accent-dim);
+    color: #fff;
+    border-bottom-right-radius: 2px;
+  }
+
+  .message.assistant {
+    align-self: flex-start;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 2px;
+    max-width: 90%;
+  }
+
+  .message.system {
+    align-self: center;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-style: italic;
+    padding: 4px 12px;
+  }
+
+  .message.tool {
+    align-self: flex-start;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--purple);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 6px 10px;
+    max-width: 80%;
+  }
+
+  .message.tool .tool-name {
+    color: var(--purple);
+    font-weight: 600;
+  }
+
+  .message.error {
+    align-self: center;
+    background: rgba(248, 81, 73, 0.1);
+    border: 1px solid var(--red);
+    color: var(--red);
+    font-size: 13px;
+  }
+
+  /* ── Markdown in messages ── */
+  .message.assistant p { margin: 0.4em 0; }
+  .message.assistant p:first-child { margin-top: 0; }
+  .message.assistant p:last-child { margin-bottom: 0; }
+
+  .message.assistant code {
+    background: var(--bg-tertiary);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  .message.assistant pre {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin: 8px 0;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .message.assistant pre code {
+    background: none;
+    padding: 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: var(--font-sans);
+  }
+
+  .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  .message.assistant ul, .message.assistant ol {
+    padding-left: 1.5em;
+    margin: 0.4em 0;
+  }
+
+  .message.assistant strong { color: var(--accent); }
+
+  .message.assistant blockquote {
+    border-left: 3px solid var(--border);
+    padding-left: 12px;
+    color: var(--text-muted);
+    margin: 0.4em 0;
+  }
+
+  .message.assistant h1, .message.assistant h2, .message.assistant h3 {
+    margin: 0.6em 0 0.3em;
+    color: var(--accent);
+  }
+  .message.assistant h1 { font-size: 1.3em; }
+  .message.assistant h2 { font-size: 1.15em; }
+  .message.assistant h3 { font-size: 1.05em; }
+
+  /* ── Typing indicator ── */
+  .typing {
+    align-self: flex-start;
+    padding: 10px 14px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  .typing .dots span {
+    animation: blink 1.4s infinite both;
+    font-size: 18px;
+  }
+  .typing .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing .dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes blink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
+
+  /* ── Input ── */
+  #input-area {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-secondary);
+    flex-shrink: 0;
+  }
+
+  #input-form {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+
+  #input-field {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    resize: none;
+    min-height: 44px;
+    max-height: 200px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  #input-field:focus { border-color: var(--accent); }
+  #input-field::placeholder { color: var(--text-muted); }
+
+  #send-btn {
+    background: var(--accent-dim);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+
+  #send-btn:hover { background: var(--accent); }
+  #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Briefing Panel ── */
+  #briefing-panel {
+    display: none;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    max-height: 150px;
+    overflow-y: auto;
+    cursor: pointer;
+    white-space: pre-wrap;
+  }
+
+  #briefing-panel.visible { display: block; }
+
+  #briefing-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-family: var(--font-mono);
+  }
+
+  #briefing-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ── Mobile ── */
+  @media (max-width: 600px) {
+    #app { max-width: 100%; }
+    .message { max-width: 92%; }
+    .message.assistant { max-width: 95%; }
+    header h1 { font-size: 16px; }
+    #input-field { font-size: 16px; /* Prevent zoom on iOS */ }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <h1>MERIDIAN</h1>
+      <select id="project-select"></select>
+    </div>
+    <div class="status">
+      <button id="briefing-toggle" style="display:none;">briefing</button>
+      <span id="status-text">disconnected</span>
+      <div class="status-dot" id="status-dot"></div>
+    </div>
+  </header>
+
+  <div id="briefing-panel"></div>
+
+  <div id="messages">
+    <div class="message system">Connect to a project to start chatting.</div>
+  </div>
+
+  <div id="input-area">
+    <form id="input-form">
+      <textarea id="input-field" placeholder="Type a message..." rows="1" disabled></textarea>
+      <button type="submit" id="send-btn" disabled>Send</button>
+    </form>
+  </div>
+</div>
+
+<!-- Markdown: marked.js from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Elements ──
+  const messagesEl = document.getElementById('messages');
+  const inputField = document.getElementById('input-field');
+  const sendBtn = document.getElementById('send-btn');
+  const inputForm = document.getElementById('input-form');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const projectSelect = document.getElementById('project-select');
+  const briefingPanel = document.getElementById('briefing-panel');
+  const briefingToggle = document.getElementById('briefing-toggle');
+
+  // ── State ──
+  let ws = null;
+  let currentProject = 'default';
+  let isWaiting = false;
+  let currentAssistantMsg = null;
+  let currentAssistantText = '';
+
+  // ── Markdown config ──
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+      headerIds: false,
+      mangle: false,
+    });
+  }
+
+  // ── Project loading ──
+  async function loadProjects() {
+    try {
+      const resp = await fetch('/api/projects');
+      const data = await resp.json();
+      projectSelect.innerHTML = '';
+      const projects = data.projects || [];
+      if (projects.length === 0) {
+        projects.push({ project_id: 'default' });
+      }
+      projects.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.project_id;
+        opt.textContent = p.project_id;
+        projectSelect.appendChild(opt);
+      });
+      currentProject = projectSelect.value;
+    } catch (e) {
+      projectSelect.innerHTML = '<option value="default">default</option>';
+    }
+  }
+
+  // ── WebSocket ──
+  function connect() {
+    if (ws && ws.readyState <= 1) {
+      ws.close();
+    }
+
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = `${protocol}//${location.host}/ws/${currentProject}`;
+
+    setStatus('connecting');
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      setStatus('connected');
+      addSystemMessage(`Connected to project: ${currentProject}`);
+      inputField.disabled = false;
+      sendBtn.disabled = false;
+      inputField.focus();
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleMessage(msg);
+      } catch (e) {
+        console.error('Parse error:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      setStatus('disconnected');
+      inputField.disabled = true;
+      sendBtn.disabled = true;
+      addSystemMessage('Disconnected. Reconnecting in 3s...');
+      setTimeout(() => connect(), 3000);
+    };
+
+    ws.onerror = (err) => {
+      console.error('WebSocket error:', err);
+    };
+  }
+
+  function handleMessage(msg) {
+    switch (msg.type) {
+      case 'ready':
+        addSystemMessage(`Session started: ${msg.data.session_id}`);
+        break;
+
+      case 'briefing':
+        briefingPanel.textContent = msg.data;
+        briefingPanel.classList.add('visible');
+        briefingToggle.style.display = 'inline-block';
+        break;
+
+      case 'content':
+        if (!currentAssistantMsg) {
+          currentAssistantMsg = addMessage('assistant', '');
+          currentAssistantText = '';
+        }
+        currentAssistantText += msg.data;
+        renderAssistantMessage(currentAssistantMsg, currentAssistantText);
+        scrollToBottom();
+        break;
+
+      case 'tool_call':
+        addToolMessage(`calling ${msg.data.name}...`);
+        break;
+
+      case 'tool_result':
+        // Update the last tool message if present
+        const toolMsgs = messagesEl.querySelectorAll('.message.tool');
+        if (toolMsgs.length > 0) {
+          const last = toolMsgs[toolMsgs.length - 1];
+          const name = msg.data.name;
+          const preview = msg.data.preview || '';
+          last.innerHTML = `<span class="tool-name">${escapeHtml(name)}</span> ${escapeHtml(preview.substring(0, 120))}${preview.length > 120 ? '...' : ''}`;
+        }
+        break;
+
+      case 'done':
+        isWaiting = false;
+        currentAssistantMsg = null;
+        currentAssistantText = '';
+        removeTyping();
+        inputField.disabled = false;
+        sendBtn.disabled = false;
+        inputField.focus();
+        break;
+
+      case 'error':
+        addErrorMessage(msg.data);
+        isWaiting = false;
+        currentAssistantMsg = null;
+        currentAssistantText = '';
+        removeTyping();
+        inputField.disabled = false;
+        sendBtn.disabled = false;
+        break;
+    }
+  }
+
+  // ── UI helpers ──
+  function addMessage(role, content) {
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+    if (role === 'assistant') {
+      renderAssistantMessage(div, content);
+    } else if (role === 'user') {
+      div.textContent = content;
+    }
+    messagesEl.appendChild(div);
+    scrollToBottom();
+    return div;
+  }
+
+  function addSystemMessage(text) {
+    const div = document.createElement('div');
+    div.className = 'message system';
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    scrollToBottom();
+  }
+
+  function addToolMessage(text) {
+    const div = document.createElement('div');
+    div.className = 'message tool';
+    div.innerHTML = `<span class="tool-name">${escapeHtml(text)}</span>`;
+    messagesEl.appendChild(div);
+    scrollToBottom();
+  }
+
+  function addErrorMessage(text) {
+    const div = document.createElement('div');
+    div.className = 'message error';
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    scrollToBottom();
+  }
+
+  function renderAssistantMessage(el, text) {
+    if (typeof marked !== 'undefined') {
+      el.innerHTML = marked.parse(text);
+      // Add copy buttons to code blocks
+      el.querySelectorAll('pre').forEach(pre => {
+        if (!pre.querySelector('.copy-btn')) {
+          const btn = document.createElement('button');
+          btn.className = 'copy-btn';
+          btn.textContent = 'copy';
+          btn.onclick = () => {
+            const code = pre.querySelector('code') || pre;
+            navigator.clipboard.writeText(code.textContent).then(() => {
+              btn.textContent = 'copied!';
+              setTimeout(() => btn.textContent = 'copy', 1500);
+            });
+          };
+          pre.style.position = 'relative';
+          pre.appendChild(btn);
+        }
+      });
+    } else {
+      el.textContent = text;
+    }
+  }
+
+  function showTyping() {
+    removeTyping();
+    const div = document.createElement('div');
+    div.className = 'typing';
+    div.id = 'typing-indicator';
+    div.innerHTML = '<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+    messagesEl.appendChild(div);
+    scrollToBottom();
+  }
+
+  function removeTyping() {
+    const el = document.getElementById('typing-indicator');
+    if (el) el.remove();
+  }
+
+  function scrollToBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function setStatus(state) {
+    statusDot.className = 'status-dot ' + state;
+    statusText.textContent = state;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ── Send message ──
+  function sendMessage() {
+    const text = inputField.value.trim();
+    if (!text || isWaiting || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    addMessage('user', text);
+    ws.send(text);
+    inputField.value = '';
+    inputField.style.height = 'auto';
+    isWaiting = true;
+    inputField.disabled = true;
+    sendBtn.disabled = true;
+    showTyping();
+  }
+
+  // ── Events ──
+  inputForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    sendMessage();
+  });
+
+  inputField.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // Auto-resize textarea
+  inputField.addEventListener('input', () => {
+    inputField.style.height = 'auto';
+    inputField.style.height = Math.min(inputField.scrollHeight, 200) + 'px';
+  });
+
+  projectSelect.addEventListener('change', () => {
+    currentProject = projectSelect.value;
+    messagesEl.innerHTML = '';
+    briefingPanel.classList.remove('visible');
+    briefingToggle.style.display = 'none';
+    connect();
+  });
+
+  briefingToggle.addEventListener('click', () => {
+    briefingPanel.classList.toggle('visible');
+  });
+
+  // ── Init ──
+  loadProjects().then(() => connect());
+
+})();
+</script>
+</body>
+</html>
