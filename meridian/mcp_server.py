@@ -21,7 +21,6 @@ from mcp.server.fastmcp import FastMCP
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent.parent))
 
 from meridian.config import config
-from meridian.email import EmailClient
 from meridian.gateway import MemoryGateway
 from meridian.storage import StorageLayer
 from meridian.workers import WorkerPool
@@ -37,23 +36,17 @@ logger = logging.getLogger("meridian.mcp")
 storage: StorageLayer | None = None
 gateway: MemoryGateway | None = None
 workers: WorkerPool | None = None
-email_client: EmailClient | None = None
 
 
 @asynccontextmanager
 async def lifespan(server: FastMCP):
     """Initialize subsystems when MCP server starts."""
-    global storage, gateway, workers, email_client
+    global storage, gateway, workers
     logger.info("Meridian MCP server starting...")
     storage = StorageLayer()
     await storage.init_db()
     gateway = MemoryGateway()
     workers = WorkerPool()
-    email_client = EmailClient()
-    if config.gmail_address:
-        logger.info(f"Email configured: {config.gmail_address}")
-    else:
-        logger.warning("Email not configured — set GMAIL_ADDRESS and GMAIL_TOKEN_PATH")
     logger.info("Meridian MCP server ready — all subsystems initialized")
     yield
     logger.info("Meridian MCP server shutting down...")
@@ -63,8 +56,6 @@ async def lifespan(server: FastMCP):
         await gateway.close()
     if workers:
         await workers.close()
-    if email_client:
-        await email_client.close()
 
 
 mcp = FastMCP(
@@ -232,45 +223,6 @@ async def memory_update(id: str, content: str | None = None, tags: list[str] | N
         updates["superseded_by"] = superseded_by
 
     result = await storage.update({"id": id, "updates": updates})
-    return json.dumps(result, default=str)
-
-
-# ── Email Tools ──
-
-@mcp.tool()
-async def email_send(to: str, subject: str, body: str, cc: str | None = None) -> str:
-    """Send an email from GigaClaude's Gmail account.
-
-    Args:
-        to: Recipient email address
-        subject: Email subject line
-        body: Email body (plain text)
-        cc: Optional CC addresses (comma-separated)
-    """
-    result = await email_client.send(to, subject, body, cc)
-    return json.dumps(result, default=str)
-
-
-@mcp.tool()
-async def email_inbox(limit: int = 10, unread_only: bool = True) -> str:
-    """Check GigaClaude's email inbox. Returns recent messages with sender, subject, date, and UID.
-
-    Args:
-        limit: Maximum number of emails to return (default: 10)
-        unread_only: Only show unread messages (default: True)
-    """
-    messages = await email_client.fetch_inbox(limit=limit, unread_only=unread_only)
-    return json.dumps(messages, default=str)
-
-
-@mcp.tool()
-async def email_read(uid: str) -> str:
-    """Read the full content of an email by its UID (from email_inbox results).
-
-    Args:
-        uid: The email UID to read
-    """
-    result = await email_client.read_email(uid)
     return json.dumps(result, default=str)
 
 

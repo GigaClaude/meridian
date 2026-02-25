@@ -1,6 +1,5 @@
 """Configuration loaded from environment variables with sensible defaults."""
 
-import json
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -30,11 +29,6 @@ class MeridianConfig:
     port: int = field(default_factory=lambda: int(os.getenv("MERIDIAN_PORT", "7891")))
     working_dir: Path = field(default_factory=lambda: Path(os.getenv("MERIDIAN_WORKING_DIR", str(Path.home()))))
 
-    # Gmail
-    gmail_address: str = field(default_factory=lambda: os.getenv("GMAIL_ADDRESS", ""))
-    gmail_app_password: str = field(default_factory=lambda: os.getenv("GMAIL_APP_PASSWORD", ""))
-    gmail_token_path: Path = field(default_factory=lambda: Path(os.getenv("GMAIL_TOKEN_PATH", str(Path.home() / ".gmail_token.json"))))
-
     # Tuning
     hot_memory_max_tokens: int = field(default_factory=lambda: int(os.getenv("HOT_MEMORY_MAX_TOKENS", "2000")))
     recall_default_max_tokens: int = field(default_factory=lambda: int(os.getenv("RECALL_DEFAULT_MAX_TOKENS", "800")))
@@ -45,22 +39,6 @@ class MeridianConfig:
     def __post_init__(self):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         (self.data_dir / "episodes").mkdir(exist_ok=True)
-        self._load_accounts()
-
-    def _load_accounts(self):
-        """Load credentials from .accounts file if env vars aren't set."""
-        accounts_path = Path(os.getenv("ACCOUNTS_FILE", str(Path.home() / ".accounts")))
-        if not accounts_path.exists():
-            return
-        try:
-            data = json.loads(accounts_path.read_text())
-            email_info = data.get("email", {})
-            if not self.gmail_address and email_info.get("address"):
-                self.gmail_address = email_info["address"]
-            if not self.gmail_app_password and email_info.get("password"):
-                self.gmail_app_password = email_info["password"]
-        except (json.JSONDecodeError, KeyError):
-            pass
 
 
 config = MeridianConfig()

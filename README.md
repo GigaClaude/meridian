@@ -1,14 +1,22 @@
 # Meridian
 
-**Claude Code forgets everything on compaction. Meridian fixes that.**
+**Give Claude Code unlimited memory. Then watch it cook.**
 
-Persistent memory with local LLM synthesis — runs on a single consumer GPU, no cloud dependencies. While other memory solutions dump raw search results into context, Meridian has a local Gateway model that synthesizes memories before delivery: 5,000 tokens of search results become 500 tokens of actionable summary. Your context stays clean.
+You think Claude Code is powerful now? It forgets everything on compaction. Every. Single. Time. Meridian gives it persistent, searchable, synthesized memory that survives across sessions — running entirely on your local GPU. No cloud dependencies. No token limits on what it can remember.
 
-## Why Not Just Use CLAUDE.md?
+Works with both **claude.ai user accounts** and **Anthropic API platform accounts**.
 
-CLAUDE.md works until you have 50 decisions, 30 patterns, and 20 warnings. Then you're loading 80% of your context window before work even begins. Every session starts fat and gets fatter.
+## The Problem
 
-Meridian loads ~1,500 tokens at boot (a YAML briefing with current task, recent decisions, active warnings). Everything else is on-demand — ask for what you need, when you need it. Memories you don't query don't cost tokens.
+Claude Code compacts your conversation when context gets full. Everything it learned — your architecture decisions, debugging history, project conventions — gone. Next session starts from zero.
+
+CLAUDE.md helps, but it doesn't scale. 50 decisions + 30 patterns + 20 warnings = 80% of your context window consumed before work even begins. Every session starts fat and gets fatter.
+
+## The Fix
+
+Meridian loads **~1,500 tokens** at boot — a YAML briefing with current task, recent decisions, active warnings. Everything else is on-demand. Ask for what you need, when you need it. Memories you don't query don't cost tokens.
+
+The secret sauce: a **local Gateway LLM** that synthesizes search results before delivering them to Claude. 5,000 tokens of raw matches become 500 tokens of actionable summary. Your context stays lean. Claude stays focused.
 
 ## How It Works
 
@@ -76,7 +84,7 @@ MCP Server (mcp_server.py)
 
 **Minimum viable**: RTX 3060 12GB with an 8B Gateway model. Smaller models are faster but less precise at synthesis.
 
-Everything runs locally. No API keys needed for the memory layer. Your data stays on your machine.
+Everything runs locally. No API keys needed for the memory layer itself. Your data stays on your machine.
 
 ## Quick Start
 
@@ -92,6 +100,12 @@ First run pulls ~10GB of models — grab a coffee. Once all three services are h
 
 ```bash
 claude mcp add meridian -- docker compose exec -T meridian python -m meridian.mcp_server
+```
+
+To use the web UI, pass your API key:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... docker compose up -d
 ```
 
 > **GPU required.** The Ollama container needs NVIDIA Container Toolkit installed on the host.
@@ -193,13 +207,14 @@ Copy `.env.example` to `.env` and adjust:
 | `MERIDIAN_DATA_DIR` | `~/.meridian` | Data directory |
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant connection |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama connection |
+| `ANTHROPIC_API_KEY` | — | For web UI (works with claude.ai or API platform keys) |
 
 ## Web UI
 
 Meridian includes a browser chat UI and REST API:
 
 ```bash
-python meridian.py --web-only
+python -m meridian.web
 # Open http://localhost:7891
 ```
 
@@ -245,8 +260,12 @@ This takes ~5 seconds and replaces the 10+ exchanges of hand-holding that typica
 ## Notes
 
 - Gateway/worker models are configurable. Any Ollama-compatible model works. Avoid qwen3 series (thinking mode consumes output tokens silently).
-- Qdrant runs as a single binary — no Docker or container needed.
+- Qdrant runs as a single binary — no Docker or container needed for manual install.
 - The MCP server communicates via stdio. Claude Code manages the lifecycle automatically.
+
+## Credits
+
+Built by [GigaClaude](https://github.com/GigaClaude) with [apresence](https://github.com/apresence).
 
 ## License
 

@@ -12,8 +12,6 @@ dependencies = [
     "pydantic>=2.9.0",
     "websockets>=13.0",
     "mcp>=1.0.0",
-    "google-auth>=2.0.0",
-    "google-api-python-client>=2.0.0",
     "PyYAML>=6.0",
 ]
 

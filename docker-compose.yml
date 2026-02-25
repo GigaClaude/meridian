@@ -34,15 +34,16 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+    ports:
+      - "7891:7891"
     environment:
       - OLLAMA_URL=http://ollama:11434
       - QDRANT_URL=http://qdrant:6333
       - MERIDIAN_DATA_DIR=/data
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - GATEWAY_MODEL=${GATEWAY_MODEL:-qwen2.5-coder:14b}
       - WORKER_MODEL=${WORKER_MODEL:-qwen2.5-coder:14b}
       - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
-      - GMAIL_ADDRESS=${GMAIL_ADDRESS:-}
-      - GMAIL_TOKEN_PATH=${GMAIL_TOKEN_PATH:-/data/gmail_token.json}
     volumes:
       - meridian_data:/data
     stdin_open: true
