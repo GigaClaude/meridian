@@ -186,6 +186,43 @@ python meridian.py --web-only
 
 REST endpoints: `/api/memory/recall`, `/api/memory/remember`, `/api/memory/briefing`, `/api/bridge/*` (inter-agent messaging).
 
+## Structured Output
+
+The Gateway uses Ollama's `format` parameter to enforce JSON schema constraints on LLM output. Instead of hoping the model follows a YAML template, the schema is enforced at the token level:
+
+```python
+# In gateway.py — briefing generation
+raw_json = await self._generate(
+    prompt,
+    max_tokens=2000,
+    json_schema=BRIEFING_SCHEMA,  # Ollama enforces this
+)
+briefing = yaml.dump(json.loads(raw_json))  # Guaranteed valid
+```
+
+This eliminates malformed output, missing fields, and markdown fence pollution. The `BRIEFING_SCHEMA` defines required sections: `project`, `latest_checkpoint` (task, decisions, warnings, next_steps, working_set), `recent_decisions`, `active_warnings`, and `meridian_gotchas`.
+
+The `_generate()` method accepts an optional `json_schema` parameter for reuse. Any Gateway call can be schema-constrained.
+
+## Recall Quality Tests
+
+Before changing models or prompts, run the regression suite:
+
+```bash
+python tests/test_recall_quality.py
+```
+
+Seeds 10 fixture memories into an isolated test collection, runs 5 known queries, and asserts expected fragments and citation counts. The test collection is created and destroyed per run — production data is never touched.
+
+## Boot Sequence
+
+Meridian is designed for post-compaction recovery. When Claude's context window compresses, the boot sequence reconstructs identity and task state in two parallel phases:
+
+**Phase 1** (parallel): `memory_briefing` + `memory_recall("personality identity")`
+**Phase 2** (parallel): `memory_recall("current task")` + `memory_recall("recent decisions")` + `memory_recall("working set")`
+
+This takes ~5 seconds and replaces the 10+ exchanges of hand-holding that typically follow context compaction.
+
 ## Notes
 
 - Gateway/worker models are configurable. Any Ollama-compatible model works. Avoid qwen3 series (thinking mode consumes output tokens silently).
