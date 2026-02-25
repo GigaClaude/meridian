@@ -6,11 +6,13 @@ Uses a local LLM via Ollama for synthesis.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import httpx
+import yaml
 
 from .config import config
 
@@ -30,6 +32,58 @@ RULES:
 - Shorter is ALWAYS better. Stop when the question is answered.
 - Write flowing prose. No section headers, no structured reports.
 - For briefings: output YAML only, no prose, no markdown fences."""
+
+
+# JSON schema for structured briefing output via Ollama's format parameter.
+# This forces the LLM to emit valid JSON matching this exact structure.
+BRIEFING_SCHEMA = {
+    "type": "object",
+    "required": ["project", "latest_checkpoint", "recent_decisions", "active_warnings", "meridian_gotchas"],
+    "properties": {
+        "project": {"type": "string"},
+        "latest_checkpoint": {
+            "type": "object",
+            "required": ["task", "decisions", "warnings", "next_steps", "working_set"],
+            "properties": {
+                "task": {"type": "string"},
+                "decisions": {"type": "array", "items": {"type": "string"}},
+                "warnings": {"type": "array", "items": {"type": "string"}},
+                "next_steps": {"type": "array", "items": {"type": "string"}},
+                "working_set": {
+                    "type": "object",
+                    "properties": {
+                        "files": {"type": "array", "items": {"type": "string"}},
+                        "endpoints": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+            },
+        },
+        "recent_decisions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["id", "description", "rationale"],
+                "properties": {
+                    "id": {"type": "string"},
+                    "description": {"type": "string"},
+                    "rationale": {"type": "string"},
+                },
+            },
+        },
+        "active_warnings": {"type": "array", "items": {"type": "string"}},
+        "port_assignments": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "migrated_memories_warning": {"type": "array", "items": {"type": "string"}},
+        "meridian_gotchas": {"type": "array", "items": {"type": "string"}},
+        "post_compression_recovery": {"type": "array", "items": {"type": "string"}},
+        "anti_patterns_to_avoid": {"type": "array", "items": {"type": "string"}},
+        "self_management": {"type": "array", "items": {"type": "string"}},
+        "qwen3_models": {"type": "array", "items": {"type": "string"}},
+        "decay_freshness_scoring": {"type": "array", "items": {"type": "string"}},
+    },
+}
 
 
 IDENTITY_PATTERNS = [
@@ -115,11 +169,20 @@ class MemoryGateway:
         if self._http and not self._http.is_closed:
             await self._http.aclose()
 
-    async def _generate(self, prompt: str, system: str | None = None, max_tokens: int = 1000) -> str:
-        """Call the 30B model via Ollama chat API."""
+    async def _generate(
+        self,
+        prompt: str,
+        system: str | None = None,
+        max_tokens: int = 1000,
+        json_schema: dict | None = None,
+    ) -> str:
+        """Call the local model via Ollama chat API.
+
+        Args:
+            json_schema: If provided, Ollama enforces this JSON schema on output
+                         via the 'format' parameter (structured output).
+        """
         http = await self._get_http()
-        # Use /api/chat with /no_think to disable qwen3's thinking mode
-        # and get direct responses
         payload = {
             "model": self.model,
             "messages": [
@@ -129,9 +192,11 @@ class MemoryGateway:
             "stream": False,
             "options": {
                 "num_predict": max_tokens,
-                "temperature": 0.3,
+                "temperature": 0.1 if json_schema else 0.3,
             },
         }
+        if json_schema:
+            payload["format"] = json_schema
         try:
             resp = await http.post(f"{self.ollama_url}/api/chat", json=payload)
             resp.raise_for_status()
@@ -177,84 +242,38 @@ class MemoryGateway:
                 raw_context += f"  - [{w['severity'].upper()}] {w['content']}\n"
             raw_context += "\n"
 
-        prompt = f"""Assemble a hot memory YAML briefing from this raw data. Output ONLY valid YAML — no markdown fences, no commentary.
-
-REQUIRED SCHEMA (follow exactly):
-```
-project: <project_id>
-
-latest_checkpoint:
-  task: <1-2 sentence summary of current work>
-  decisions:
-    - <key decision 1>
-    - <key decision 2>
-  warnings:
-    - <actionable warning — only things that affect current work>
-  next_steps:
-    - <concrete next action 1>
-    - <concrete next action 2>
-  working_set:
-    files:
-      - <active file paths>
-    endpoints:
-      - <host:port (service name)>
-
-recent_decisions:
-  - id: <mem_id>
-    description: <what was decided>
-    rationale: <why>
-
-active_warnings:
-  - [HIGH|MED|LOW] <warning text>
-
-port_assignments:
-  - <port>: <service name>
-
-migrated_memories_warning:
-  - [HIGH] <if applicable>
-
-meridian_gotchas:
-  - <technical gotcha 1>
-
-post_compression_recovery:
-  - <recovery instruction>
-
-anti_patterns_to_avoid:
-  - <anti-pattern>
-
-self_management:
-  - <self-management tool/script>
-```
+        prompt = f"""Populate a structured briefing from this raw data. Fill every field accurately.
 
 RULES:
-1. latest_checkpoint.task is the MOST IMPORTANT field — lead with what's being worked on.
-2. Warnings: ONLY include things that actively block or threaten current work. Technical gotchas about Qdrant API naming go under meridian_gotchas, NOT warnings.
-3. Differentiate severity: HIGH = blocks current work, MED = affects workflow, LOW = FYI.
-4. Keep total output under 1200 tokens. Be ruthless about what to include.
-5. Working set: only files actively being modified, not every file in the project.
-6. Decisions: top 5 most recent, with rationale preserved.
+1. latest_checkpoint.task: 1-2 sentence summary of current work — most important field.
+2. latest_checkpoint.warnings: ONLY things that block or threaten current work. Prefix each with [HIGH], [MED], or [LOW].
+3. meridian_gotchas: technical gotchas (API quirks, version issues, config traps).
+4. active_warnings: prefix each with [HIGH], [MED], or [LOW].
+5. recent_decisions: include id, description, and rationale for top 5.
+6. Be concise. Each string should be 1-2 sentences max.
+7. Include ALL data from the raw input — don't drop fields.
 
 RAW DATA:
-{raw_context}
+{raw_context}"""
 
-Output YAML now:"""
+        raw_json = await self._generate(
+            prompt,
+            max_tokens=config.hot_memory_max_tokens,
+            json_schema=BRIEFING_SCHEMA,
+        )
 
-        briefing_yaml = await self._generate(prompt, max_tokens=config.hot_memory_max_tokens)
-
-        # Validate it's YAML-ish; if gateway fails, return structured fallback
-        if not briefing_yaml or briefing_yaml.startswith("[Gateway error"):
+        # Parse structured JSON output and convert to YAML
+        if not raw_json or raw_json.startswith("[Gateway error"):
             return _fallback_briefing(project_id, checkpoint, decisions, warnings)
 
-        # Strip markdown fences if the LLM wrapped the YAML
-        cleaned = briefing_yaml.strip()
-        if cleaned.startswith("```"):
-            # Remove opening fence (```yaml or ```)
-            first_newline = cleaned.index("\n") if "\n" in cleaned else len(cleaned)
-            cleaned = cleaned[first_newline + 1:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3].rstrip()
-
-        return f"# HOT MEMORY — auto-generated by Meridian Gateway\n```yaml\n{cleaned}\n```"
+        try:
+            briefing_data = json.loads(raw_json)
+            briefing_yaml = yaml.dump(briefing_data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+            return f"# HOT MEMORY — auto-generated by Meridian Gateway\n```yaml\n{briefing_yaml}```"
+        except (json.JSONDecodeError, yaml.YAMLError) as e:
+            logger.warning(f"Failed to parse structured briefing output: {e}")
+            # Fall back to raw output if JSON parsing fails
+            return f"# HOT MEMORY — auto-generated by Meridian Gateway\n```yaml\n{raw_json}\n```"
 
     async def recall(
         self,
