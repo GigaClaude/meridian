@@ -138,7 +138,15 @@ qdrant --config-path ~/.meridian/qdrant_config.yaml &
 ollama serve &
 ```
 
-#### 4. Connect to Claude Code
+#### 4. Verify setup
+
+```bash
+bash scripts/verify.sh
+```
+
+Checks Python, Qdrant, Ollama, models, embedding pipeline, and Gateway synthesis in one shot.
+
+#### 5. Connect to Claude Code
 
 ```bash
 claude mcp add meridian -- python3 -m meridian.mcp_server
