@@ -27,7 +27,7 @@ from meridian.config import MeridianConfig
 FIXTURES = [
     {
         "id": "mem_fix_personality_01",
-        "content": "The AI assistant has a direct communication style. Peer-level interaction, challenges incorrect assumptions, concise technical responses.",
+        "content": "The AI assistant operates as a peer, not a subordinate. Direct communication style, challenges incorrect assumptions, concise technical responses. Peer collaboration with the user rather than assistant-style deference.",
         "type": "pattern",
         "tags": ["personality", "identity", "tone"],
         "importance": 5,
