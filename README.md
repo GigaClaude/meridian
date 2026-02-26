@@ -48,6 +48,18 @@ state doesn't update — workaround: aria-label button click [mem_135acbebc9ce].
 - **Warm** — Qdrant vector store with importance-weighted reranking and freshness decay. Searched on demand. Results synthesized by Gateway before returning.
 - **Cold** — Gzipped session transcripts indexed by date. Keyword-searchable archive. Never loaded unless explicitly asked.
 
+## Token Budget
+
+Real numbers from a production instance with 237 memories:
+
+| | Tokens | % of 200k window |
+|---|---|---|
+| **Meridian boot** (briefing + 5 recall phases) | ~2,000 | 1% |
+| **On-demand recall** (per query, synthesized) | ~300–500 | 0.15–0.25% |
+| **CLAUDE.md equivalent** (237 memories, always loaded) | ~12,000+ | 6%+ |
+
+The Gateway compresses raw search results ~10x before delivering them. 5,000 tokens of matches become 500 tokens of actionable summary. As your memory grows, CLAUDE.md grows linearly — Meridian stays flat.
+
 ## Multi-Agent Support
 
 Memories carry a `source` tag — which agent created them. Multiple Claude instances can share a single Meridian backend with attributed recall:
