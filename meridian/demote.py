@@ -54,9 +54,9 @@ async def run_sweep(dry_run: bool = False, pin_from_checkpoint: bool = True):
     if dry_run:
         logger.info("DRY RUN — would demote the following:")
         # Just scan and report what would be demoted
-        from datetime import datetime
+        from datetime import datetime, timezone
         from qdrant_client.models import FieldCondition, Filter, MatchValue
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         offset = None
         candidates = []
         pfilter = Filter(must=[
