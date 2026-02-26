@@ -9,3 +9,7 @@ audit/
 episodes/
 *.gz
 .mcp.json
+meridian.py
+meridian.egg-info/
+audit_report.json
+extraction_log.json

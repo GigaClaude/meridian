@@ -46,6 +46,7 @@ services:
     volumes:
       - meridian_data:/data
     stdin_open: true
+    restart: unless-stopped
 
 volumes:
   ollama_models:
