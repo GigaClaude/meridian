@@ -45,6 +45,7 @@ services:
       - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
       - MERIDIAN_HOST=0.0.0.0
       - MERIDIAN_PORT=${MERIDIAN_PORT:-7891}
+      - MERIDIAN_AGENT_ID=${MERIDIAN_AGENT_ID:-}
     volumes:
       - meridian_data:/data
     healthcheck:

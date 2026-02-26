@@ -240,6 +240,7 @@ Copy `.env.example` to `.env` and adjust:
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant connection |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama connection |
 | `ANTHROPIC_API_KEY` | — | For web UI (works with claude.ai or API platform keys) |
+| `MERIDIAN_AGENT_ID` | — | Agent identity for multi-agent setups (e.g. `giga`, `webbie`) |
 
 ## Web UI
 
