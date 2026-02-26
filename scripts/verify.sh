@@ -6,6 +6,9 @@ PASS=0
 FAIL=0
 WARN=0
 
+QDRANT_URL="${QDRANT_URL:-http://localhost:6333}"
+OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
+
 pass() { echo "  ✓ $1"; PASS=$((PASS + 1)); }
 fail() { echo "  ✗ $1"; FAIL=$((FAIL + 1)); }
 warn() { echo "  ! $1"; WARN=$((WARN + 1)); }
@@ -32,9 +35,9 @@ fi
 # 2. Qdrant
 echo ""
 echo "[2/6] Qdrant"
-if curl -sf http://localhost:6333/healthz > /dev/null 2>&1; then
-    pass "Qdrant responding on :6333"
-    COLLECTIONS=$(curl -sf http://localhost:6333/collections | python3 -c "
+if curl -sf ${QDRANT_URL}/healthz > /dev/null 2>&1; then
+    pass "Qdrant responding at ${QDRANT_URL}"
+    COLLECTIONS=$(curl -sf ${QDRANT_URL}/collections | python3 -c "
 import sys, json; d=json.load(sys.stdin)
 print(len(d.get('result',{}).get('collections',[])))
 " 2>/dev/null || echo "?")
@@ -46,8 +49,8 @@ fi
 # 3. Ollama
 echo ""
 echo "[3/6] Ollama"
-if curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
-    pass "Ollama responding on :11434"
+if curl -sf ${OLLAMA_URL}/api/tags > /dev/null 2>&1; then
+    pass "Ollama responding at ${OLLAMA_URL}"
 else
     fail "Ollama not running — install from https://ollama.com"
 fi
@@ -60,7 +63,7 @@ EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text}"
 
 for MODEL in "$GATEWAY_MODEL" "$EMBED_MODEL"; do
     STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
-        -X POST "http://localhost:11434/api/show" \
+        -X POST "${OLLAMA_URL}/api/show" \
         -H "Content-Type: application/json" \
         -d "{\"name\": \"$MODEL\"}" 2>/dev/null || echo "000")
     if [ "$STATUS" = "200" ]; then
@@ -73,7 +76,7 @@ done
 # 5. Embedding test
 echo ""
 echo "[5/6] Embedding pipeline"
-EMBED_RESULT=$(curl -sf -X POST "http://localhost:11434/api/embed" \
+EMBED_RESULT=$(curl -sf -X POST "${OLLAMA_URL}/api/embed" \
     -H "Content-Type: application/json" \
     -d "{\"model\": \"$EMBED_MODEL\", \"input\": \"test embedding\"}" 2>/dev/null)
 
@@ -95,7 +98,7 @@ fi
 # 6. Gateway synthesis test
 echo ""
 echo "[6/6] Gateway synthesis"
-SYNTH_RESULT=$(curl -sf -X POST "http://localhost:11434/api/chat" \
+SYNTH_RESULT=$(curl -sf -X POST "${OLLAMA_URL}/api/chat" \
     -H "Content-Type: application/json" \
     -d "{
         \"model\": \"$GATEWAY_MODEL\",
