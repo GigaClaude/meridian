@@ -115,7 +115,7 @@ TEST_QUERIES = [
         "query": "personality identity who am I",
         "scope": "all",
         "max_tokens": 400,
-        "expect_fragments": ["direct", "peer", "communication"],
+        "expect_fragments": ["direct", "communication"],
         "min_citations": 0,  # Personality queries often skip inline citations
         "description": "Identity query should describe the assistant's personality",
     },

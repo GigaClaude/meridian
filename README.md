@@ -60,6 +60,16 @@ Real numbers from a production instance with 111 curated memories:
 
 The Gateway compresses raw search results ~10x before delivering them. 5,000 tokens of matches become 500 tokens of actionable summary. As your memory grows, CLAUDE.md grows linearly — Meridian stays flat.
 
+**Prerecall hook** (fires every prompt, injects top-3 relevant memories automatically):
+
+| Metric | Value |
+|---|---|
+| P50 latency | 51ms |
+| Avg latency | 115ms |
+| Context injected per prompt | ~100 tokens |
+| vs. dumping all memories | ~11,000 tokens |
+| **Context reduction** | **~99%** |
+
 ## Multi-Agent Support
 
 Memories carry a `source` tag — which agent created them. Multiple Claude instances can share a single Meridian backend with attributed recall:
@@ -276,6 +286,10 @@ The `_generate()` method accepts an optional `json_schema` parameter for reuse. 
 Before changing models or prompts, run the regression suite:
 
 ```bash
+# Pytest (recommended)
+pytest tests/test_recall_pytest.py -v -m integration
+
+# Standalone
 python tests/test_recall_quality.py
 ```
 
