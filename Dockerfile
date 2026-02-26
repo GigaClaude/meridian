@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 WORKDIR /app
 
 COPY pyproject.toml .
+COPY meridian.py .
 COPY meridian/ meridian/
 COPY scripts/ scripts/
 RUN chmod +x scripts/*.sh

@@ -1,3 +1,13 @@
+# Meridian: Persistent Memory for Claude Code
+#
+# Quick start (bundled Ollama + GPU):
+#   docker compose --profile with-ollama up -d
+#
+# With your own Ollama (already running on host):
+#   OLLAMA_URL=http://host.docker.internal:11434 docker compose up -d
+#
+# First run pulls embedding + gateway models (~10-15 min).
+
 services:
   ollama:
     image: ollama/ollama:latest
@@ -46,14 +56,14 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - GATEWAY_MODEL=${GATEWAY_MODEL:-qwen2.5-coder:14b}
       - WORKER_MODEL=${WORKER_MODEL:-qwen2.5-coder:14b}
-      - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
+      - EMBED_MODEL=${EMBED_MODEL:-mxbai-embed-large}
       - MERIDIAN_HOST=0.0.0.0
       - MERIDIAN_PORT=${MERIDIAN_PORT:-7891}
       - MERIDIAN_AGENT_ID=${MERIDIAN_AGENT_ID:-}
     volumes:
       - meridian_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7891/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${MERIDIAN_PORT:-7891}/api/health"]
       interval: 10s
       timeout: 5s
       retries: 30

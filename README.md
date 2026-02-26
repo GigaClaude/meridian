@@ -26,7 +26,7 @@ The secret sauce: a **local Gateway LLM** that synthesizes search results before
 
 Meridian runs as an [MCP server](https://modelcontextprotocol.io/) that Claude Code connects to automatically.
 
-1. **Query** is embedded locally via Ollama (`nomic-embed-text`)
+1. **Query** is embedded locally via Ollama (`mxbai-embed-large`)
 2. **Qdrant** returns top-10 results by cosine similarity
 3. Results are **reranked** by importance + freshness decay
 4. **Gateway LLM synthesizes** results into a concise summary with source citations
@@ -162,7 +162,7 @@ pip install -e .
 #### 2. Pull models
 
 ```bash
-ollama pull nomic-embed-text       # embeddings (768-dim, ~270MB)
+ollama pull mxbai-embed-large      # embeddings (1024-dim, ~670MB)
 ollama pull qwen2.5-coder:14b     # gateway + workers (~9GB)
 ```
 
@@ -260,7 +260,7 @@ Copy `.env.example` to `.env` and adjust:
 |----------|---------|-------------|
 | `GATEWAY_MODEL` | `qwen2.5-coder:14b` | Ollama model for synthesis |
 | `WORKER_MODEL` | `qwen2.5-coder:14b` | Ollama model for entity extraction |
-| `EMBED_MODEL` | `nomic-embed-text` | Ollama model for embeddings |
+| `EMBED_MODEL` | `mxbai-embed-large` | Ollama model for embeddings |
 | `MERIDIAN_DATA_DIR` | `~/.meridian` | Data directory |
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant connection |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama connection |
