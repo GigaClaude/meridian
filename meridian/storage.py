@@ -606,6 +606,46 @@ class StorageLayer:
                 return None
             return {"id": row["id"], "name": row["name"], "type": row["type"]}
 
+    async def find_entities_in_text(self, text: str, min_name_length: int = 3) -> list[dict]:
+        """Find known entities whose names appear in the given text.
+
+        Returns entities sorted by name length descending (longer matches first).
+        Only matches entities with names >= min_name_length to avoid noise.
+        """
+        text_lower = text.lower()
+        async with self._db.execute(
+            "SELECT id, name, type FROM entities WHERE project_id = ? AND LENGTH(name) >= ?",
+            (self.project_id, min_name_length),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        matches = []
+        for row in rows:
+            if row["name"].lower() in text_lower:
+                matches.append({
+                    "id": row["id"],
+                    "name": row["name"],
+                    "type": row["type"],
+                })
+        # Longer names first (more specific matches)
+        matches.sort(key=lambda e: len(e["name"]), reverse=True)
+        return matches
+
+    async def get_related_entity_names(self, entity_name: str, depth: int = 1) -> set[str]:
+        """Get names of entities related to the given entity (shallow traversal).
+
+        Returns a set of entity names connected within `depth` hops.
+        """
+        result = await self.query_graph(entity_name, depth=depth)
+        names = set()
+        for ent in result.get("entities", []):
+            names.add(ent["name"])
+        for rel in result.get("relations", []):
+            names.add(rel["source"])
+            names.add(rel["target"])
+        names.discard(entity_name)  # Don't include the starting entity
+        return names
+
     # ── Episodic Store ──
 
     async def store_episode(self, session: EpisodicSession, transcript: list[dict]) -> str:

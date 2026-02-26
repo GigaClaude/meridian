@@ -378,6 +378,54 @@ RAW DATA:
                     seen.add(r["id"])
             raw_results = raw_results[:10]
 
+        # Graph-augmented search: find entities mentioned in query,
+        # get related entity names, and search for memories mentioning them.
+        # This helps with cross-type queries like "Chris's preferences" or
+        # "Webbie's contributions" where vector search misses scattered info.
+        try:
+            entity_matches = await storage.find_entities_in_text(query, min_name_length=4)
+            if entity_matches:
+                # Take top 3 most specific entity matches (sorted longest-first by find_entities_in_text)
+                top_entities = entity_matches[:3]
+                related_names = set()
+                for ent in top_entities:
+                    names = await storage.get_related_entity_names(ent["name"], depth=1)
+                    related_names.update(names)
+
+                if related_names:
+                    # Score expansion names by keyword overlap with query terms
+                    query_terms = _extract_query_terms(query)
+                    def _expansion_score(name: str) -> float:
+                        name_lower = name.lower()
+                        overlap = sum(1 for t in query_terms if t in name_lower)
+                        # Prefer names with query term overlap, then by specificity (length)
+                        return (overlap * 10) + min(len(name), 20)
+                    expansion_names = sorted(related_names, key=_expansion_score, reverse=True)[:6]
+                    expanded_query = query + " " + " ".join(expansion_names)
+                    graph_results = await storage.search_memories(
+                        expanded_query, limit=5, scope=scope,
+                        exclude_sources=exclude_episodic,
+                    )
+                    # Merge graph results — give them a slight penalty since
+                    # they're from an expanded query (may be less precise)
+                    seen = {r["id"] for r in raw_results}
+                    graph_added = 0
+                    for gr in graph_results:
+                        if gr["id"] not in seen:
+                            gr["score"] *= 0.95  # Slight penalty for indirect match
+                            gr["graph_expanded"] = True
+                            raw_results.append(gr)
+                            seen.add(gr["id"])
+                            graph_added += 1
+                    if graph_added:
+                        logger.info(
+                            f"Graph expansion: {len(top_entities)} entities, "
+                            f"{len(related_names)} related names, {graph_added} new results "
+                            f"for '{query[:40]}'"
+                        )
+        except Exception as e:
+            logger.warning(f"Graph-augmented search failed: {e}")
+
         # If warm search found too few results, try cold storage fallback
         if len(raw_results) < 3:
             try:
