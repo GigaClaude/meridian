@@ -105,8 +105,31 @@ def _is_task_state_query(query: str) -> bool:
     return any(p in q for p in TASK_STATE_PATTERNS)
 
 
-def _rerank(results: list[dict]) -> list[dict]:
-    """Rerank results by blending vector score with importance and freshness.
+_STOPWORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "shall",
+    "should", "may", "might", "must", "can", "could", "to", "of", "in",
+    "for", "on", "with", "at", "by", "from", "as", "into", "through",
+    "during", "before", "after", "above", "below", "between", "out", "off",
+    "over", "under", "again", "further", "then", "once", "here", "there",
+    "when", "where", "why", "how", "all", "both", "each", "few", "more",
+    "most", "other", "some", "such", "no", "nor", "not", "only", "own",
+    "same", "so", "than", "too", "very", "and", "but", "or", "if", "while",
+    "about", "what", "which", "who", "whom", "this", "that", "these",
+    "those", "am", "it", "its", "my", "we", "our", "you", "your", "they",
+    "their", "he", "she", "him", "her", "me", "us", "i",
+})
+
+
+def _extract_query_terms(query: str) -> set[str]:
+    """Extract significant terms from a query for keyword matching."""
+    import re
+    tokens = re.findall(r"[a-zA-Z0-9_\-./:]+", query.lower())
+    return {t for t in tokens if t not in _STOPWORDS and len(t) > 1}
+
+
+def _rerank(results: list[dict], query: str = "") -> list[dict]:
+    """Rerank results by blending vector score with importance, freshness, and keyword overlap.
 
     Components:
     - importance boost: nonlinear, imp5 gets 3x the boost of imp2
@@ -114,12 +137,17 @@ def _rerank(results: list[dict]) -> list[dict]:
     - freshness boost: starts at 0.05, decays by 0.001/day (normal) or 0.005/day (volatile)
       Normal:   1d: +0.049, 1w: +0.043, 1mo: +0.02, 50d: +0.0
       Volatile: 1d: +0.045, 3d: +0.035, 1w: +0.015, 10d: +0.0
+    - keyword boost: up to +0.03 for exact query term matches in content
+      Helps when the right memory has keyword overlap but lower vector similarity.
 
     Volatile memories (ports, PIDs, temp paths) decay 5x faster — after 10 days
     they get zero freshness boost, making them naturally deprioritized.
     """
     # Nonlinear importance curve — critical memories get a real advantage
     IMPORTANCE_BOOST = {1: 0.01, 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12}
+    KEYWORD_MAX_BOOST = 0.03
+
+    query_terms = _extract_query_terms(query) if query else set()
 
     now = datetime.now(timezone.utc)
     for r in results:
@@ -143,7 +171,14 @@ def _rerank(results: list[dict]) -> list[dict]:
             except (ValueError, TypeError):
                 pass
 
-        r["score"] = r["score"] + importance_boost + freshness_boost
+        # Keyword overlap boost — proportion of query terms found in content
+        keyword_boost = 0.0
+        if query_terms:
+            content_lower = r.get("content", "").lower()
+            matches = sum(1 for t in query_terms if t in content_lower)
+            keyword_boost = KEYWORD_MAX_BOOST * (matches / len(query_terms))
+
+        r["score"] = r["score"] + importance_boost + freshness_boost + keyword_boost
     return sorted(results, key=lambda r: r["score"], reverse=True)
 
 
@@ -367,7 +402,7 @@ RAW DATA:
             }
 
         # Rerank by importance + freshness (breaks ties when vector scores are close)
-        raw_results = _rerank(raw_results)
+        raw_results = _rerank(raw_results, query=query)
 
         # Build context for synthesis
         tag_note = f"\nTAG FILTER: {', '.join(matched_tags)}" if matched_tags else ""
