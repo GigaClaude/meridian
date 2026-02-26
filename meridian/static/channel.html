@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian — Channel</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-input: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #6e7681;
+    --nick-chris: #58a6ff;
+    --nick-giga: #3fb950;
+    --nick-webbie: #d29922;
+    --nick-system: #6e7681;
+    --font: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Liberation Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  #header {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  #header .title {
+    color: var(--text);
+    font-weight: bold;
+  }
+
+  #status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f85149;
+  }
+  #status-dot.connected { background: #3fb950; }
+  #status-dot.connecting { background: #d29922; }
+
+  /* Messages */
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .msg {
+    line-height: 1.5;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  .msg .ts {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-right: 4px;
+    user-select: none;
+  }
+
+  .msg .nick {
+    font-weight: bold;
+    margin-right: 4px;
+  }
+
+  .nick-chris { color: var(--nick-chris); }
+  .nick-giga { color: var(--nick-giga); }
+  .nick-webbie { color: var(--nick-webbie); }
+  .nick-system { color: var(--nick-system); font-style: italic; }
+
+  .msg .content {
+    color: var(--text);
+  }
+
+  /* Multiline messages — indent continuation lines */
+  .msg .content-multi {
+    display: inline;
+  }
+
+  /* Input */
+  #input-area {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-input);
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  #nick-display {
+    color: var(--nick-chris);
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+
+  #input-field {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 10px;
+    font-family: var(--font);
+    font-size: 14px;
+    outline: none;
+  }
+
+  #input-field:focus {
+    border-color: #58a6ff;
+  }
+
+  /* Nick picker (shown on first visit) */
+  #nick-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  #nick-modal.hidden { display: none; }
+
+  #nick-box {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    text-align: center;
+    width: 300px;
+  }
+
+  #nick-box h2 {
+    margin-bottom: 16px;
+    font-size: 16px;
+  }
+
+  #nick-box input {
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px 12px;
+    font-family: var(--font);
+    font-size: 14px;
+    text-align: center;
+    outline: none;
+    margin-bottom: 12px;
+  }
+
+  #nick-box input:focus { border-color: #58a6ff; }
+
+  #nick-box button {
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 8px 24px;
+    font-family: var(--font);
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  #nick-box button:hover { background: #58a6ff; }
+
+  /* Users sidebar */
+  #users {
+    padding: 4px 12px 8px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="header">
+    <span><span class="title">#meridian</span></span>
+    <div id="status">
+      <span id="status-text">disconnected</span>
+      <div id="status-dot"></div>
+    </div>
+  </div>
+
+  <div id="messages"></div>
+
+  <div id="input-area">
+    <span id="nick-display">chris&gt;</span>
+    <input type="text" id="input-field" placeholder="Type a message..." autofocus>
+  </div>
+</div>
+
+<!-- Nick picker -->
+<div id="nick-modal">
+  <div id="nick-box">
+    <h2>#meridian</h2>
+    <input type="text" id="nick-input" placeholder="Your nick" value="chris" autofocus>
+    <br>
+    <button id="nick-ok">Join</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const messagesEl = document.getElementById('messages');
+  const inputField = document.getElementById('input-field');
+  const nickDisplay = document.getElementById('nick-display');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const nickModal = document.getElementById('nick-modal');
+  const nickInput = document.getElementById('nick-input');
+  const nickOk = document.getElementById('nick-ok');
+
+  let ws = null;
+  let nick = localStorage.getItem('meridian-nick') || '';
+  let reconnectTimer = null;
+
+  // Nick colors
+  const nickColors = {
+    chris: 'nick-chris',
+    giga: 'nick-giga',
+    webbie: 'nick-webbie',
+  };
+
+  function nickClass(name) {
+    const lower = name.toLowerCase();
+    return nickColors[lower] || 'nick-system';
+  }
+
+  // Format timestamp
+  function fmtTime(ts) {
+    const d = new Date(ts * 1000);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return h + ':' + m;
+  }
+
+  // Add a message to the log
+  function addMsg(sender, content, ts) {
+    const div = document.createElement('div');
+    div.className = 'msg';
+
+    const tsStr = ts ? fmtTime(ts) : fmtTime(Date.now() / 1000);
+
+    div.innerHTML =
+      '<span class="ts">' + tsStr + '</span>' +
+      '<span class="nick ' + nickClass(sender) + '">[' + escapeHtml(sender) + ']</span>' +
+      '<span class="content">' + escapeHtml(content) + '</span>';
+
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addSystem(text) {
+    const div = document.createElement('div');
+    div.className = 'msg';
+    div.innerHTML = '<span class="ts">' + fmtTime(Date.now() / 1000) + '</span>' +
+      '<span class="nick nick-system">***</span>' +
+      '<span class="content" style="color: var(--text-muted); font-style: italic;">' + escapeHtml(text) + '</span>';
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function setStatus(state) {
+    statusDot.className = state;
+    statusText.textContent = state;
+  }
+
+  // Load history
+  async function loadHistory() {
+    try {
+      const resp = await fetch('/api/channel/history?limit=200');
+      const data = await resp.json();
+      (data.messages || []).forEach(m => addMsg(m.sender, m.content, m.ts));
+    } catch (e) {
+      console.error('History load failed:', e);
+    }
+  }
+
+  // Connect WebSocket
+  function connect() {
+    if (ws && ws.readyState <= 1) ws.close();
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = protocol + '//' + location.host + '/ws/channel';
+
+    setStatus('connecting');
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      setStatus('connected');
+      addSystem(nick + ' has joined #meridian');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        addMsg(msg.sender, msg.content, msg.ts);
+      } catch (e) {
+        console.error('Parse error:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      setStatus('disconnected');
+      reconnectTimer = setTimeout(connect, 3000);
+    };
+
+    ws.onerror = () => {};
+  }
+
+  // Send message
+  function send() {
+    const text = inputField.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    ws.send(JSON.stringify({ sender: nick, content: text }));
+    inputField.value = '';
+  }
+
+  inputField.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  // Nick modal
+  function setNick(n) {
+    nick = n.trim() || 'anon';
+    localStorage.setItem('meridian-nick', nick);
+    nickDisplay.textContent = nick + '>';
+    nickDisplay.className = nickClass(nick);
+    nickModal.classList.add('hidden');
+    inputField.focus();
+    loadHistory().then(() => connect());
+  }
+
+  nickOk.addEventListener('click', () => setNick(nickInput.value));
+  nickInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') setNick(nickInput.value);
+  });
+
+  // If we already have a nick, skip the modal
+  if (nick) {
+    setNick(nick);
+  } else {
+    nickInput.focus();
+  }
+
+})();
+</script>
+</body>
+</html>

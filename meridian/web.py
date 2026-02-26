@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -75,6 +76,10 @@ async def lifespan(app: FastAPI):
         sh.copy2(mcp_src, mcp_dst)
     logger.info(f"Sandbox dir: {sandbox_dir}")
     logger.info(f"Web UI: http://localhost:{config.port}")
+
+    # Load channel history from SQLite
+    _init_channel_db()
+
     yield
 
     if storage:
@@ -187,6 +192,11 @@ class MessageRequest(BaseModel):
 # Simple in-memory message queue for Claude-to-Claude comms
 _message_queue: list[dict] = []
 
+# ── IRC Channel ──
+_channel_messages: list[dict] = []
+_channel_subscribers: list[WebSocket] = []
+_channel_db_path = Path(os.getenv("MERIDIAN_DATA_DIR", str(Path.home() / ".meridian"))) / "channel.db"
+
 
 @app.post("/api/memory/recall")
 async def api_recall(req: RecallRequest):
@@ -258,6 +268,117 @@ async def bridge_ack(recipient: str, before: float = 0):
     ]
     cleared = before_len - len(_message_queue)
     return {"cleared": cleared, "remaining": len(_message_queue)}
+
+
+# ── IRC Channel ──
+
+class ChannelMessage(BaseModel):
+    sender: str
+    content: str
+
+
+def _init_channel_db():
+    """Initialize channel SQLite and load recent messages into memory."""
+    import sqlite3
+    db = sqlite3.connect(str(_channel_db_path))
+    db.execute("""CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender TEXT NOT NULL,
+        content TEXT NOT NULL,
+        ts REAL NOT NULL
+    )""")
+    db.commit()
+    # Load last 200 messages into memory
+    rows = db.execute("SELECT sender, content, ts FROM messages ORDER BY id DESC LIMIT 200").fetchall()
+    for sender, content, ts in reversed(rows):
+        _channel_messages.append({"sender": sender, "content": content, "ts": ts})
+    db.close()
+    logger.info(f"Channel DB: {_channel_db_path} ({len(_channel_messages)} messages loaded)")
+
+
+async def _channel_broadcast(sender: str, content: str) -> dict:
+    """Store a message, broadcast to subscribers, return the entry."""
+    import sqlite3
+    ts = time.time()
+    entry = {"sender": sender, "content": content, "ts": ts}
+
+    # Persist to SQLite
+    try:
+        db = sqlite3.connect(str(_channel_db_path))
+        db.execute("INSERT INTO messages (sender, content, ts) VALUES (?, ?, ?)", (sender, content, ts))
+        db.commit()
+        db.close()
+    except Exception as e:
+        logger.warning(f"Channel DB write failed: {e}")
+
+    # In-memory cache
+    _channel_messages.append(entry)
+    if len(_channel_messages) > 500:
+        _channel_messages[:] = _channel_messages[-500:]
+
+    # Broadcast to WebSocket subscribers
+    dead = []
+    for sub in _channel_subscribers:
+        try:
+            await sub.send_json(entry)
+        except Exception:
+            dead.append(sub)
+    for d in dead:
+        _channel_subscribers.remove(d)
+
+    logger.info(f"[channel] {sender}: {content[:80]}")
+    return entry
+
+
+@app.get("/channel", response_class=HTMLResponse)
+async def channel_page():
+    channel_path = static_dir / "channel.html"
+    if channel_path.exists():
+        return HTMLResponse(content=channel_path.read_text())
+    return HTMLResponse("<h1>channel.html not found</h1>", status_code=404)
+
+
+@app.post("/api/channel/send")
+async def channel_send(msg: ChannelMessage):
+    """Post a message to the shared channel. Everyone sees it."""
+    await _channel_broadcast(msg.sender, msg.content)
+    return {"ok": True, "count": len(_channel_messages)}
+
+
+@app.get("/api/channel/say")
+async def channel_say(nick: str, msg: str):
+    """Simple GET endpoint. Usage: /api/channel/say?nick=chris&msg=hello+world"""
+    await _channel_broadcast(nick, msg)
+    return {"ok": True}
+
+
+@app.get("/api/channel/history")
+async def channel_history(since: float = 0, limit: int = 100):
+    """Get recent channel messages."""
+    msgs = [m for m in _channel_messages if m["ts"] > since]
+    return {"messages": msgs[-limit:]}
+
+
+@app.websocket("/ws/channel")
+async def channel_ws(ws: WebSocket):
+    """WebSocket for real-time channel updates."""
+    await ws.accept()
+    _channel_subscribers.append(ws)
+    logger.info(f"Channel subscriber connected ({len(_channel_subscribers)} total)")
+    try:
+        while True:
+            # Client can send messages through the WebSocket too
+            data = await ws.receive_json()
+            if "sender" in data and "content" in data:
+                await _channel_broadcast(data["sender"], data["content"])
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.error(f"Channel WS error: {e}")
+    finally:
+        if ws in _channel_subscribers:
+            _channel_subscribers.remove(ws)
+        logger.info(f"Channel subscriber disconnected ({len(_channel_subscribers)} total)")
 
 
 # ── WebSocket Chat ──
