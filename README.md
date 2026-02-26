@@ -1,5 +1,9 @@
 # Meridian
 
+<p align="center">
+  <img src="docs/triad-architecture.svg" alt="The Triad Architecture" width="800">
+</p>
+
 **Give Claude Code unlimited memory. Then watch it cook.**
 
 You think Claude Code is powerful now? It forgets everything on compaction. Every. Single. Time. Meridian gives it persistent, searchable, synthesized memory that survives across sessions — running entirely on your local GPU. No cloud dependencies. No token limits on what it can remember.
