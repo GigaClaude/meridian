@@ -62,17 +62,7 @@ BRIEFING_SCHEMA = {
             },
         },
         "active_warnings": {"type": "array", "items": {"type": "string"}},
-        "port_assignments": {
-            "type": "array",
-            "items": {"type": "string"},
-        },
-        "migrated_memories_warning": {"type": "array", "items": {"type": "string"}},
         "meridian_gotchas": {"type": "array", "items": {"type": "string"}},
-        "post_compression_recovery": {"type": "array", "items": {"type": "string"}},
-        "anti_patterns_to_avoid": {"type": "array", "items": {"type": "string"}},
-        "self_management": {"type": "array", "items": {"type": "string"}},
-        "qwen3_models": {"type": "array", "items": {"type": "string"}},
-        "decay_freshness_scoring": {"type": "array", "items": {"type": "string"}},
     },
 }
 
