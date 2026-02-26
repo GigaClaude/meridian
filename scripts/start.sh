@@ -14,8 +14,8 @@ mkdir -p "$DATA_DIR/episodes" "$DATA_DIR/qdrant_storage"
 # Start Qdrant if not running
 if ! curl -s http://localhost:6333/collections > /dev/null 2>&1; then
     echo "Starting Qdrant..."
-    if [ -f /tmp/qdrant ] && [ -f "$DATA_DIR/qdrant_config.yaml" ]; then
-        cd "$DATA_DIR" && /tmp/qdrant --config-path ./qdrant_config.yaml > /tmp/qdrant.log 2>&1 &
+    if command -v qdrant &>/dev/null && [ -f "$DATA_DIR/qdrant_config.yaml" ]; then
+        cd "$DATA_DIR" && qdrant --config-path ./qdrant_config.yaml > /tmp/qdrant.log 2>&1 &
         sleep 2
         echo "Qdrant started on :6333"
     else
