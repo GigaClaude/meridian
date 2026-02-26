@@ -214,7 +214,7 @@ class StorageLayer:
         except Exception as e:
             logger.warning(f"Embedding failed (Ollama down?): {e}")
             # Return zero vector — memory will be stored but not searchable until re-embedded
-            return [0.0] * 768
+            return [0.0] * 1024
 
     # ── Vector Store (Qdrant) ──
 

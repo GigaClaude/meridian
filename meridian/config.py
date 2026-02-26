@@ -17,13 +17,13 @@ class MeridianConfig:
 
     # Qdrant
     qdrant_url: str = field(default_factory=lambda: os.getenv("QDRANT_URL", "http://localhost:6333"))
-    qdrant_collection: str = field(default_factory=lambda: os.getenv("QDRANT_COLLECTION", "memories"))
+    qdrant_collection: str = field(default_factory=lambda: os.getenv("QDRANT_COLLECTION", "memories_v2"))
 
     # Ollama
     ollama_url: str = field(default_factory=lambda: os.getenv("OLLAMA_URL", "http://localhost:11434"))
     gateway_model: str = field(default_factory=lambda: os.getenv("GATEWAY_MODEL", "qwen2.5-coder:14b"))
     worker_model: str = field(default_factory=lambda: os.getenv("WORKER_MODEL", "qwen2.5-coder:14b"))
-    embed_model: str = field(default_factory=lambda: os.getenv("EMBED_MODEL", "nomic-embed-text"))
+    embed_model: str = field(default_factory=lambda: os.getenv("EMBED_MODEL", "mxbai-embed-large"))
 
     # Web Server
     host: str = field(default_factory=lambda: os.getenv("MERIDIAN_HOST", "0.0.0.0"))

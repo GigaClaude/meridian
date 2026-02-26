@@ -28,4 +28,4 @@ pull_if_missing() {
 
 pull_if_missing "${GATEWAY_MODEL:-qwen2.5-coder:14b}"
 pull_if_missing "${WORKER_MODEL:-qwen2.5-coder:14b}"
-pull_if_missing "${EMBED_MODEL:-nomic-embed-text}"
+pull_if_missing "${EMBED_MODEL:-mxbai-embed-large}"

@@ -59,7 +59,7 @@ fi
 echo ""
 echo "[4/6] Required models"
 GATEWAY_MODEL="${GATEWAY_MODEL:-qwen2.5-coder:14b}"
-EMBED_MODEL="${EMBED_MODEL:-nomic-embed-text}"
+EMBED_MODEL="${EMBED_MODEL:-mxbai-embed-large}"
 
 for MODEL in "$GATEWAY_MODEL" "$EMBED_MODEL"; do
     STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \

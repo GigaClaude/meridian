@@ -6,8 +6,8 @@ top hits as additionalContext. This turns Meridian from "memory you ask for"
 into "memory that shows up when relevant."
 
 Designed for the Meridian Claude Code plugin. Requires:
-- Ollama running with nomic-embed-text model
-- Qdrant running with a 'memories' collection
+- Ollama running with mxbai-embed-large model
+- Qdrant running with a 'memories_v2' collection
 """
 
 import json
@@ -17,8 +17,8 @@ import urllib.request
 
 OLLAMA_URL = "http://localhost:11434"
 QDRANT_URL = "http://localhost:6333"
-EMBED_MODEL = "nomic-embed-text"
-COLLECTION = "memories"
+EMBED_MODEL = "mxbai-embed-large"
+COLLECTION = "memories_v2"
 PROJECT_ID = "default"
 
 SIMILARITY_THRESHOLD = 0.70
