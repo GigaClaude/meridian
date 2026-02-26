@@ -482,27 +482,45 @@ Summary:"""
         }
 
     async def history_search(self, args: dict, storage: StorageLayer, workers=None) -> dict:
-        """Search episodic cold storage."""
+        """Search episodic cold storage — keyword search on indexes + vector search on ingested JSONL."""
         query = args["query"]
-        episodes = await storage.search_episodes(query, limit=5)
 
-        if not episodes:
-            return {
-                "episodes": [],
-                "token_count": 0,
+        # Path 1: keyword search on episode index files (legacy)
+        episodes = await storage.search_episodes(query, limit=3)
+        episode_results = [
+            {
+                "session_id": ep["session_id"],
+                "started_at": ep.get("started_at", ""),
+                "summary": ep.get("summary", ""),
+                "relevance": 1.0,
+                "source": "episode_index",
             }
+            for ep in episodes
+        ]
+
+        # Path 2: vector search on ingested JSONL conversation chunks
+        vector_results = await storage.search_memories(
+            query, limit=5, scope="all", source_filter="episodic_ingest"
+        )
+        conversation_results = [
+            {
+                "session_id": r.get("id", "").split("_")[1] if "_" in r.get("id", "") else "unknown",
+                "content": r.get("content", "")[:500],
+                "relevance": r.get("score", 0),
+                "source": "episodic_vector",
+            }
+            for r in vector_results
+        ]
+
+        all_results = episode_results + conversation_results
+        token_count = sum(
+            len(r.get("summary", r.get("content", "")).split()) for r in all_results
+        )
 
         return {
-            "episodes": [
-                {
-                    "session_id": ep["session_id"],
-                    "started_at": ep.get("started_at", ""),
-                    "summary": ep.get("summary", ""),
-                    "relevance": 1.0,
-                }
-                for ep in episodes
-            ],
-            "token_count": sum(len(ep.get("summary", "").split()) for ep in episodes),
+            "episodes": episode_results,
+            "conversations": conversation_results,
+            "token_count": token_count,
         }
 
 
