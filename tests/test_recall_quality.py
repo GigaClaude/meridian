@@ -184,9 +184,11 @@ class RecallQualityTester:
         except Exception:
             pass
 
+        # Probe embedding dimension from storage layer (matches production: mxbai-embed-large = 1024)
+        dim = self.storage._probe_embed_dim()
         self.storage.qdrant.create_collection(
             collection_name=TEST_COLLECTION,
-            vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+            vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
         )
 
         print(f"Seeding {len(FIXTURES)} fixture memories into '{TEST_COLLECTION}'...")
