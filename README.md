@@ -200,6 +200,17 @@ Or add to `.mcp.json` in your project:
 }
 ```
 
+### Option C: Claude Code Plugin
+
+Load Meridian as a plugin for slash commands (`/recall`, `/remember`, `/briefing`) and automatic memory injection:
+
+```bash
+git clone https://github.com/GigaClaude/meridian.git
+claude --plugin-dir ./meridian/plugin
+```
+
+The plugin bundles the MCP server, pre-recall hook, and slash command skills. Requires Qdrant and Ollama running locally (see Option B for setup).
+
 ### Add to CLAUDE.md
 
 ```markdown

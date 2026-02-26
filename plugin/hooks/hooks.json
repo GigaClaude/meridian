@@ -1,0 +1,16 @@
+{
+  "description": "Meridian memory hooks — automatic pre-recall injects relevant memories into every prompt",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/prerecall.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "meridian": {
+      "type": "stdio",
+      "command": "bash",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/../scripts/mcp_server.sh"],
+      "env": {}
+    }
+  }
+}
