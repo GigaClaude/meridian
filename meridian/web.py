@@ -416,3 +416,9 @@ MEMORY PROTOCOL:
 
 CURRENT BRIEFING (project: {project_id}):
 {briefing}"""
+
+
+if __name__ == "__main__":
+    host = os.environ.get("MERIDIAN_HOST", "0.0.0.0")
+    port = int(os.environ.get("MERIDIAN_PORT", "7891"))
+    uvicorn.run(app, host=host, port=port, log_level="info")

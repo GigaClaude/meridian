@@ -7,9 +7,12 @@ WORKDIR /app
 COPY pyproject.toml .
 COPY meridian/ meridian/
 COPY scripts/ scripts/
+RUN chmod +x scripts/*.sh
 
 RUN pip install --no-cache-dir -e .
 
 ENV MERIDIAN_DATA_DIR=/data
+
+EXPOSE 7891
 
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]

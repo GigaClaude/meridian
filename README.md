@@ -108,26 +108,32 @@ cd meridian
 docker compose --profile gpu up -d
 ```
 
-First run pulls ~10GB of models — grab a coffee. Once all services are healthy:
+First run pulls ~10GB of models — grab a coffee. Check progress with `docker compose logs -f meridian`.
+
+Once healthy (web UI responds at `http://localhost:7891`), connect Claude Code:
 
 ```bash
 claude mcp add meridian -- docker compose exec -T meridian python -m meridian.mcp_server
 ```
 
-**Already have Ollama running?** Skip the GPU profile and point to your host instance:
+This exec's into the running container each time Claude starts — the container stays up as a service.
+
+**Already have Ollama running?** Skip the GPU profile and point to your host:
 
 ```bash
 OLLAMA_URL=http://host.docker.internal:11434 docker compose up -d
 ```
 
-To use the web UI, pass your API key:
+**Web UI** is included — pass your API key to enable the chat interface:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... docker compose --profile gpu up -d
+# Open http://localhost:7891
 ```
 
-> **GPU profile** requires NVIDIA Container Toolkit on the host.
-> See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
+> **GPU profile** requires [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host.
+>
+> **Startup times**: First run with GPU profile: ~15-20 min (model download). Subsequent starts: ~30 seconds. Already have Ollama with models: ~10 seconds.
 
 ### Option B: Manual install
 

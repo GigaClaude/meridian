@@ -34,7 +34,7 @@ services:
       qdrant:
         condition: service_healthy
     ports:
-      - "7891:7891"
+      - "${MERIDIAN_PORT:-7891}:${MERIDIAN_PORT:-7891}"
     environment:
       - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - QDRANT_URL=http://qdrant:6333
@@ -43,9 +43,16 @@ services:
       - GATEWAY_MODEL=${GATEWAY_MODEL:-qwen2.5-coder:14b}
       - WORKER_MODEL=${WORKER_MODEL:-qwen2.5-coder:14b}
       - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
+      - MERIDIAN_HOST=0.0.0.0
+      - MERIDIAN_PORT=${MERIDIAN_PORT:-7891}
     volumes:
       - meridian_data:/data
-    stdin_open: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7891/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     restart: unless-stopped
 
 volumes:
