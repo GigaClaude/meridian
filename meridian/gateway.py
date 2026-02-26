@@ -21,17 +21,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("meridian.gateway")
 
-GATEWAY_SYSTEM_PROMPT = """You are a memory retrieval filter. Your job: extract ONLY the facts that answer the question. Discard everything else.
-
-CRITICAL RULES:
-- If a search result doesn't directly answer the query, DROP IT COMPLETELY. Don't mention it.
-- 50-70% of search results will be noise. That's normal. Only include what's relevant.
-- Every fact needs a citation like: the server runs on port 8080 [mem_abc123]. No citation = don't say it.
-- Preserve specifics: paths, ports, commands, rationale.
-- Newer memories override older ones when they conflict.
-- Importance scale: 1=trivial note, 2=minor, 3=normal, 4=significant, 5=critical. Weight 4-5 results heavily.
-- Shorter is ALWAYS better. When the question is answered, STOP.
-- Flowing prose, no headers or bullet lists."""
+GATEWAY_SYSTEM_PROMPT = """Memory retrieval filter. Extract ONLY facts answering the query. Drop noise (expect 50-70% irrelevant).
+Rules: cite everything [mem_id]. No citation=don't say it. Preserve specifics (paths,ports,commands,rationale). Newer overrides older on conflict. Weight imp4-5 heavily. Shorter=better. Prose, no bullets. Stop when answered."""
 
 
 # JSON schema for structured briefing output via Ollama's format parameter.
@@ -194,6 +185,7 @@ class MemoryGateway:
                 {"role": "user", "content": prompt},
             ],
             "stream": False,
+            "keep_alive": "10m",
             "options": {
                 "num_predict": max_tokens,
                 "temperature": 0.1 if json_schema else 0.3,

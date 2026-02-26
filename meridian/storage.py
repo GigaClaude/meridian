@@ -206,7 +206,7 @@ class StorageLayer:
             http = await self._get_http()
             resp = await http.post(
                 f"{self._ollama_url}/api/embed",
-                json={"model": self._embed_model, "input": text},
+                json={"model": self._embed_model, "input": text, "keep_alive": "10m"},
             )
             resp.raise_for_status()
             data = resp.json()
