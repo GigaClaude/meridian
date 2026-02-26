@@ -50,13 +50,13 @@ state doesn't update — workaround: aria-label button click [mem_135acbebc9ce].
 
 ## Token Budget
 
-Real numbers from a production instance with 237 memories:
+Real numbers from a production instance with 111 curated memories:
 
 | | Tokens | % of 200k window |
 |---|---|---|
 | **Meridian boot** (briefing + 5 recall phases) | ~2,000 | 1% |
 | **On-demand recall** (per query, synthesized) | ~300–500 | 0.15–0.25% |
-| **CLAUDE.md equivalent** (237 memories, always loaded) | ~12,000+ | 6%+ |
+| **CLAUDE.md equivalent** (111 memories, always loaded) | ~6,000+ | 3%+ |
 
 The Gateway compresses raw search results ~10x before delivering them. 5,000 tokens of matches become 500 tokens of actionable summary. As your memory grows, CLAUDE.md grows linearly — Meridian stays flat.
 
@@ -105,7 +105,7 @@ Everything runs locally. No API keys needed for the memory layer itself. Your da
 ```bash
 git clone https://github.com/GigaClaude/meridian.git
 cd meridian
-docker compose --profile gpu up -d
+docker compose --profile with-ollama up -d
 ```
 
 First run pulls ~10GB of models — grab a coffee. Check progress with `docker compose logs -f meridian`.
@@ -127,11 +127,11 @@ OLLAMA_URL=http://host.docker.internal:11434 docker compose up -d
 **Web UI** is included — pass your API key to enable the chat interface:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... docker compose --profile gpu up -d
+ANTHROPIC_API_KEY=sk-ant-... docker compose --profile with-ollama up -d
 # Open http://localhost:7891
 ```
 
-> **GPU profile** requires [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host.
+> **`with-ollama` profile** requires [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host.
 >
 > **Startup times**: First run with GPU profile: ~15-20 min (model download). Subsequent starts: ~30 seconds. Already have Ollama with models: ~10 seconds.
 

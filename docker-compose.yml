@@ -1,14 +1,18 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    runtime: nvidia
-    profiles: ["gpu"]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+    profiles: ["with-ollama"]
     volumes:
       - ollama_models:/root/.ollama
     ports:
       - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 10s
