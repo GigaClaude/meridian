@@ -143,13 +143,13 @@ class StorageLayer:
         self.episodes_dir = self.data_dir / "episodes"
         self.episodes_dir.mkdir(parents=True, exist_ok=True)
 
+        # Ollama URL for embeddings (set before _ensure_collection which may probe dim)
+        self._ollama_url = config.ollama_url
+        self._embed_model = config.embed_model
+
         # Qdrant client (sync — runs fast, no need for async)
         self.qdrant = QdrantClient(url=config.qdrant_url, timeout=30, check_compatibility=False)
         self._ensure_collection()
-
-        # Ollama URL for embeddings
-        self._ollama_url = config.ollama_url
-        self._embed_model = config.embed_model
         self._http: httpx.AsyncClient | None = None
 
         # SQLite connection (created async)
@@ -159,11 +159,28 @@ class StorageLayer:
         """Create Qdrant collection if it doesn't exist."""
         collections = [c.name for c in self.qdrant.get_collections().collections]
         if config.qdrant_collection not in collections:
+            # Probe embed model for actual vector dimension
+            dim = self._probe_embed_dim()
             self.qdrant.create_collection(
                 collection_name=config.qdrant_collection,
-                vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+                vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
             )
-            logger.info(f"Created Qdrant collection: {config.qdrant_collection}")
+            logger.info(f"Created Qdrant collection: {config.qdrant_collection} (dim={dim})")
+
+    def _probe_embed_dim(self) -> int:
+        """Get embedding dimension from Ollama model. Falls back to 1024 (mxbai-embed-large)."""
+        try:
+            import httpx as _httpx
+            resp = _httpx.post(
+                f"{self._ollama_url}/api/embed",
+                json={"model": self._embed_model, "input": "dimension probe"},
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            return len(resp.json()["embeddings"][0])
+        except Exception as e:
+            logger.warning(f"Could not probe embed dimension: {e}. Defaulting to 1024.")
+            return 1024
 
     async def _get_http(self) -> httpx.AsyncClient:
         if self._http is None or self._http.is_closed:

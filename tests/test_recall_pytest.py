@@ -30,9 +30,10 @@ async def seeded_collection(storage, workers):
     except Exception:
         pass
 
+    dim = storage._probe_embed_dim()
     storage.qdrant.create_collection(
         collection_name=COLLECTION,
-        vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+        vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
     )
 
     for fix in FIXTURES:
