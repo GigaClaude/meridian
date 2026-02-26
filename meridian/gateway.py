@@ -26,12 +26,12 @@ GATEWAY_SYSTEM_PROMPT = """You are a memory retrieval filter. Your job: extract 
 CRITICAL RULES:
 - If a search result doesn't directly answer the query, DROP IT COMPLETELY. Don't mention it.
 - 50-70% of search results will be noise. That's normal. Only include what's relevant.
-- Every fact needs a citation [mem_xxx]. No citation = don't say it.
+- Every fact needs a citation like: the server runs on port 8080 [mem_abc123]. No citation = don't say it.
 - Preserve specifics: paths, ports, commands, rationale.
-- Newer memories override older ones.
+- Newer memories override older ones when they conflict.
+- Importance scale: 1=trivial note, 2=minor, 3=normal, 4=significant, 5=critical. Weight 4-5 results heavily.
 - Shorter is ALWAYS better. When the question is answered, STOP.
-- Flowing prose, no headers or bullet lists.
-- For briefings: YAML only, no prose."""
+- Flowing prose, no headers or bullet lists."""
 
 
 # JSON schema for structured briefing output via Ollama's format parameter.
@@ -246,16 +246,24 @@ class MemoryGateway:
                 raw_context += f"  - [{w['severity'].upper()}] {w['content']}\n"
             raw_context += "\n"
 
-        prompt = f"""Populate a structured briefing from this raw data. Fill every field accurately.
+        prompt = f"""Populate a structured briefing from this raw data. Output ONLY valid JSON matching the required schema.
+
+FIELD GUIDE:
+- project: project identifier string
+- latest_checkpoint.task: 1-2 sentence summary of current work — MOST IMPORTANT FIELD
+- latest_checkpoint.decisions: key decisions from the checkpoint (short strings)
+- latest_checkpoint.warnings: ONLY blockers/threats to current work, prefix each [HIGH], [MED], or [LOW]
+- latest_checkpoint.next_steps: what to do next (from checkpoint data)
+- latest_checkpoint.working_set: files and endpoints currently relevant
+- recent_decisions: top 5 decisions with id, description, and rationale from raw data
+- active_warnings: all warnings from raw data, prefix each [HIGH], [MED], or [LOW]
+- meridian_gotchas: technical gotchas (API quirks, version issues, config traps)
 
 RULES:
-1. latest_checkpoint.task: 1-2 sentence summary of current work — most important field.
-2. latest_checkpoint.warnings: ONLY things that block or threaten current work. Prefix each with [HIGH], [MED], or [LOW].
-3. meridian_gotchas: technical gotchas (API quirks, version issues, config traps).
-4. active_warnings: prefix each with [HIGH], [MED], or [LOW].
-5. recent_decisions: include id, description, and rationale for top 5.
-6. Be concise. Each string should be 1-2 sentences max.
-7. Include ALL data from the raw input — don't drop fields.
+1. Transfer ALL data from raw input — don't drop or summarize away important details.
+2. Each string should be 1-2 sentences max. Be concise but complete.
+3. Map raw severity levels directly: HIGH/CRITICAL -> [HIGH], MEDIUM -> [MED], LOW -> [LOW].
+4. For recent_decisions, preserve the original memory ID in the id field.
 
 RAW DATA:
 {raw_context}"""
@@ -392,16 +400,17 @@ RAW DATA:
         prompt = f"""Synthesize these search results into a direct answer to the query.
 
 RULES:
-1. RUTHLESSLY filter. If a result doesn't DIRECTLY answer the query, DROP IT. A result about GPU settings is irrelevant to a query about standing orders. Only ~30-50% of search results will be relevant — that's expected.
-2. EVERY fact MUST have an inline citation: "fact [mem_xxx]". No exceptions. If you can't cite it, don't include it.
+1. RUTHLESSLY filter. If a result doesn't DIRECTLY answer the query, DROP IT. Only ~30-50% of results will be relevant — that's expected.
+2. EVERY fact MUST have an inline citation using the memory ID from the results. Example: "The server runs on port 8080 [mem_abc123]." If you can't cite it, don't say it. Use the exact [mem_xxx] IDs from the search results below.
 3. Preserve rationale: "Chose X because Y" not just "Uses X."
 4. Conflicts: prefer newest (check age field). Flag: "[mem_old] (Xd) says Y but newer [mem_new] (<1h) says Z — using newer."
 5. Lead with the answer. Details after.
 6. Budget: {max_tokens} tokens MAX. Stop when the query is answered. Don't pad.
 7. Write flowing prose. NO section headers, NO bullet lists unless the query asks for a list.
 8. NEVER invent facts not present in the search results below.
-9. VOLATILE results (ports, PIDs, temp paths) may have changed — note this when citing them.
-10. Higher importance results (importance 4-5) are more likely relevant. Lower importance results need a stronger topical match to be worth including.
+9. VOLATILE results (ports, PIDs, temp paths) decay fast and may be stale. If citing a volatile result older than a few days, note it may have changed.
+10. Importance scale: 5=critical, 4=significant, 3=normal, 2=minor, 1=trivial. Strongly prefer importance 4-5 results. Only include importance 1-2 if they directly answer the query.
+11. If source attribution is present (source: giga, webbie, chris), note who said it when it matters for context.
 
 {context}
 
@@ -453,7 +462,15 @@ Answer:"""
         for r in raw_graph["relations"]:
             context += f"  - {r['source']} --{r['type']}--> {r['target']}\n"
 
-        prompt = f"""Explain this entity relationship graph in natural language. Be concise and actionable.
+        prompt = f"""Explain this entity relationship graph. Focus on how components connect and what depends on what.
+
+Relation types: calls (invokes/uses), depends_on (requires), configured_by (settings from), implements (realizes), broke (caused failure in).
+
+RULES:
+1. Lead with the queried entity and its direct connections.
+2. Note critical dependencies — what breaks if this entity goes down?
+3. Flowing prose, 2-4 sentences. No bullet lists.
+4. If the graph is sparse (few relations), say so — don't invent connections.
 
 {context}
 

@@ -66,16 +66,18 @@ class WorkerPool:
 
     async def extract_and_store_entities(self, content: str, storage: StorageLayer):
         """Extract entities and relationships from content and store them."""
-        prompt = f"""Extract entities and relationships from this text. Return JSON only.
+        prompt = f"""Extract software entities and relationships from this text.
 
 TEXT: {content}
 
-Return format:
+Return format (raw JSON, no markdown, no code blocks):
 {{"entities": [{{"name": "...", "type": "service|file|concept|person|config"}}], "relations": [{{"source": "...", "target": "...", "type": "calls|depends_on|configured_by|implements|broke"}}]}}
+
+If no entities found, return: {{"entities": [], "relations": []}}
 
 JSON:"""
 
-        system = "You are an entity extraction engine. Output ONLY valid JSON, no explanation."
+        system = "You are an entity extraction engine. Output ONLY raw JSON. No markdown, no code blocks, no explanation."
         result = await self._generate(prompt, system=system, max_tokens=500)
 
         try:
@@ -154,18 +156,20 @@ JSON:"""
             return {"summary": "Empty session", "key_events": []}
 
         prompt = f"""Summarize this session transcript. Include:
-1. A 1-2 sentence overall summary
-2. Key events (decisions made, bugs found, features implemented)
+1. A 1-2 sentence overall summary focusing on what was accomplished
+2. Key events that affect future sessions: decisions that unblock work, bugs discovered, features completed
 
 TRANSCRIPT:
 {transcript_text[:3000]}
 
-Return JSON:
+Return raw JSON (no markdown, no code blocks):
 {{"summary": "...", "key_events": [{{"type": "decision|debug|feature|note", "content": "..."}}]}}
+
+If the transcript is empty or trivial, return: {{"summary": "Minimal session", "key_events": []}}
 
 JSON:"""
 
-        system = "You are a session summarizer. Output ONLY valid JSON."
+        system = "You are a session summarizer. Output ONLY raw JSON. No markdown, no code blocks."
         result = await self._generate(prompt, system=system, max_tokens=600)
 
         try:
@@ -184,13 +188,13 @@ JSON:"""
 
     async def classify_tags(self, content: str) -> list[str]:
         """Auto-tag a memory by domain/topic."""
-        prompt = f"""Classify this text into 2-5 relevant tags from software development domains.
+        prompt = f"""Classify this text into 2-5 tags. Use lowercase, hyphenated tags from domains like: debugging, architecture, configuration, deployment, docker, testing, performance, security, memory, git, api, database, networking, automation, refactoring.
 
 TEXT: {content}
 
-Return JSON array of tag strings only:"""
+Return raw JSON array (no markdown, no code blocks):"""
 
-        system = "Output ONLY a JSON array of strings. No explanation."
+        system = "Output ONLY a raw JSON array of strings. No markdown, no code blocks, no explanation."
         result = await self._generate(prompt, system=system, max_tokens=100)
 
         try:
