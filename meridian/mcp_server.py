@@ -76,7 +76,8 @@ mcp = FastMCP(
 async def memory_briefing(project_id: str = "default") -> str:
     """Get hot memory briefing for current project. Returns YAML with current task state, active decisions, warnings, and working set. Call at session start or after compaction."""
     storage.project_id = project_id
-    briefing = await gateway.assemble_briefing(project_id, storage)
+    agent_id = config.agent_id or None
+    briefing = await gateway.assemble_briefing(project_id, storage, agent_id=agent_id)
     token_count = len(briefing.split())
     return f"[{token_count} tokens]\n{briefing}"
 
@@ -90,7 +91,8 @@ async def memory_recall(query: str, scope: str = "all", max_tokens: int = 800) -
         scope: Filter by memory type — decisions, patterns, debug, entities, warnings, or all
         max_tokens: Maximum response size in tokens (default: 800)
     """
-    result = await gateway.recall(query, scope, max_tokens, storage)
+    agent_id = config.agent_id or None
+    result = await gateway.recall(query, scope, max_tokens, storage, agent_id=agent_id)
     sources_str = ""
     if result.get("sources"):
         sources_str = "\n\nSources: " + ", ".join(
@@ -119,13 +121,15 @@ async def memory_remember(
         related_to: IDs of related memories
         source: Attribution — who created this memory (e.g. giga, webbie, chris)
     """
+    # Auto-set source from config if not explicitly provided
+    effective_source = source or config.agent_id or None
     result = await storage.remember(
         {
             "content": content,
             "type": type,
             "tags": tags or [],
             "importance": importance,
-            "source": source,
+            "source": effective_source,
             "related_to": related_to or [],
         },
         workers,
@@ -157,6 +161,7 @@ async def memory_checkpoint(
             "warnings": warnings or [],
             "next_steps": next_steps or [],
             "working_set": working_set or {},
+            "source": config.agent_id or None,
         }
     )
     return json.dumps(result, default=str)

@@ -10,6 +10,7 @@ class MeridianConfig:
     # Core
     data_dir: Path = field(default_factory=lambda: Path(os.getenv("MERIDIAN_DATA_DIR", str(Path.home() / ".meridian"))))
     project_id: str = field(default_factory=lambda: os.getenv("MERIDIAN_PROJECT_ID", "default"))
+    agent_id: str = field(default_factory=lambda: os.getenv("MERIDIAN_AGENT_ID", ""))  # giga, webbie, etc. Empty = unscoped
 
     # Anthropic
     anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))

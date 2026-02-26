@@ -211,10 +211,14 @@ class MemoryGateway:
             logger.error(f"Gateway generation failed: {e}")
             return f"[Gateway error: {e}]"
 
-    async def assemble_briefing(self, project_id: str, storage: StorageLayer) -> str:
-        """Build the hot memory YAML briefing for session start."""
-        # Gather raw data
-        checkpoint = await storage.get_latest_checkpoint(project_id)
+    async def assemble_briefing(self, project_id: str, storage: StorageLayer, agent_id: str | None = None) -> str:
+        """Build the hot memory YAML briefing for session start.
+
+        If agent_id is provided, scopes checkpoint retrieval to that agent.
+        Other agents' checkpoints are excluded so each agent rehydrates its own state.
+        """
+        # Gather raw data — scoped to agent if provided
+        checkpoint = await storage.get_latest_checkpoint(project_id, source=agent_id)
         decisions = await storage.get_recent_decisions(project_id, limit=5)
         warnings = await storage.get_active_warnings(project_id)
 
@@ -293,6 +297,7 @@ RAW DATA:
         scope: str,
         max_tokens: int,
         storage: StorageLayer,
+        agent_id: str | None = None,
     ) -> dict:
         """Semantic search + synthesis. Returns compressed, relevant summary.
 
@@ -305,7 +310,7 @@ RAW DATA:
         # Inject checkpoint context for task-state queries
         checkpoint_context = ""
         if _is_task_state_query(query):
-            checkpoint = await storage.get_latest_checkpoint()
+            checkpoint = await storage.get_latest_checkpoint(source=agent_id)
             if checkpoint:
                 checkpoint_context = (
                     f"\nLATEST CHECKPOINT ({checkpoint['created_at']}):\n"

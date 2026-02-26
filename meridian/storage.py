@@ -176,7 +176,21 @@ class StorageLayer:
         self._db.row_factory = aiosqlite.Row
         await self._db.executescript(SCHEMA_SQL)
         await self._db.commit()
+        # Migrations — additive only, safe to re-run
+        await self._migrate_add_checkpoint_source()
         logger.info(f"SQLite initialized at {self.db_path}")
+
+    async def _migrate_add_checkpoint_source(self):
+        """Add source column to checkpoints table if missing (multi-agent support)."""
+        try:
+            async with self._db.execute("PRAGMA table_info(checkpoints)") as cursor:
+                columns = {row["name"] for row in await cursor.fetchall()}
+            if "source" not in columns:
+                await self._db.execute("ALTER TABLE checkpoints ADD COLUMN source TEXT")
+                await self._db.commit()
+                logger.info("Migration: added source column to checkpoints table")
+        except Exception as e:
+            logger.warning(f"Checkpoint source migration skipped: {e}")
 
     async def close(self):
         if self._db:
@@ -301,8 +315,9 @@ class StorageLayer:
         scope: str = "all",
         project_id: str | None = None,
         tag_filter: list[str] | None = None,
+        source_filter: str | None = None,
     ) -> list[dict]:
-        """Semantic search across memories, optionally filtered by tags."""
+        """Semantic search across memories, optionally filtered by tags and/or source agent."""
         vector = await self.embed(query)
         filters = []
         pid = project_id or self.project_id
@@ -324,6 +339,10 @@ class StorageLayer:
             # Require at least one of the matched tags
             filters.append(
                 FieldCondition(key="tags", match=MatchAny(any=tag_filter))
+            )
+        if source_filter:
+            filters.append(
+                FieldCondition(key="source", match=MatchValue(value=source_filter))
             )
 
         search_filter = Filter(must=filters) if filters else None
@@ -420,28 +439,38 @@ class StorageLayer:
 
     async def store_checkpoint(self, checkpoint: Checkpoint) -> str:
         await self._db.execute(
-            "INSERT INTO checkpoints (id, session_id, project_id, task_state, decisions, warnings, next_steps, working_set, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO checkpoints (id, session_id, project_id, source, task_state, decisions, warnings, next_steps, working_set, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (checkpoint.id, checkpoint.session_id, checkpoint.project_id,
-             checkpoint.task_state, json.dumps(checkpoint.decisions),
-             json.dumps(checkpoint.warnings), json.dumps(checkpoint.next_steps),
-             json.dumps(checkpoint.working_set), checkpoint.created_at.isoformat()),
+             checkpoint.source, checkpoint.task_state,
+             json.dumps(checkpoint.decisions), json.dumps(checkpoint.warnings),
+             json.dumps(checkpoint.next_steps), json.dumps(checkpoint.working_set),
+             checkpoint.created_at.isoformat()),
         )
         await self._db.commit()
-        logger.info(f"Stored checkpoint {checkpoint.id}")
+        logger.info(f"Stored checkpoint {checkpoint.id} (source={checkpoint.source})")
         return checkpoint.id
 
-    async def get_latest_checkpoint(self, project_id: str | None = None) -> dict | None:
+    async def get_latest_checkpoint(self, project_id: str | None = None, source: str | None = None) -> dict | None:
+        """Get latest checkpoint, optionally scoped to an agent.
+
+        If source is provided, returns that agent's latest checkpoint.
+        If source is None, returns any agent's latest checkpoint (backward-compatible).
+        """
         pid = project_id or self.project_id
-        async with self._db.execute(
-            "SELECT * FROM checkpoints WHERE project_id = ? ORDER BY created_at DESC LIMIT 1",
-            (pid,),
-        ) as cursor:
+        if source:
+            query = "SELECT * FROM checkpoints WHERE project_id = ? AND source = ? ORDER BY created_at DESC LIMIT 1"
+            params = (pid, source)
+        else:
+            query = "SELECT * FROM checkpoints WHERE project_id = ? ORDER BY created_at DESC LIMIT 1"
+            params = (pid,)
+        async with self._db.execute(query, params) as cursor:
             row = await cursor.fetchone()
             if not row:
                 return None
             return {
                 "id": row["id"],
                 "session_id": row["session_id"],
+                "source": row["source"] if "source" in row.keys() else None,
                 "task_state": row["task_state"],
                 "decisions": json.loads(row["decisions"]),
                 "warnings": json.loads(row["warnings"]),
@@ -987,6 +1016,7 @@ class StorageLayer:
         cp = Checkpoint(
             session_id=args.get("session_id", gen_id("ses")),
             project_id=self.project_id,
+            source=args.get("source"),
             task_state=args["task_state"],
             decisions=args.get("decisions", []),
             warnings=args.get("warnings", []),
@@ -1096,6 +1126,7 @@ CREATE TABLE IF NOT EXISTS checkpoints (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     project_id TEXT DEFAULT 'default',
+    source TEXT,
     task_state TEXT,
     decisions TEXT DEFAULT '[]',
     warnings TEXT DEFAULT '[]',

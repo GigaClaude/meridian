@@ -33,6 +33,7 @@ class Checkpoint(BaseModel):
     id: str = Field(default_factory=lambda: gen_id("chk"))
     session_id: str = ""
     project_id: str = "default"
+    source: Optional[str] = None  # agent identity — giga, webbie, etc.
     task_state: str = ""
     decisions: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
