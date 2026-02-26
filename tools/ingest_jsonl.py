@@ -32,9 +32,10 @@ JSONL_DIR = Path.home() / ".claude" / "projects" / "-home-claude"
 STATE_FILE = config.data_dir / "jsonl_ingest_state.json"
 
 # Chunking config
-MAX_CHUNK_TOKENS = 500   # Rough token estimate per chunk (words * 1.3)
+MAX_CHUNK_TOKENS = 400   # Rough token estimate per chunk — stay under mxbai-embed-large 512 ctx
 MIN_CHUNK_CHARS = 100    # Skip tiny chunks
-MAX_CONTENT_CHARS = 2000 # Truncate very long content blocks
+MAX_CONTENT_CHARS = 1500 # Truncate very long content blocks (mxbai ctx = 512 tokens ≈ 2048 chars)
+MAX_COMBINED_CHARS = 1800 # Hard cap on final combined chunk (~450 tokens)
 
 
 def load_state() -> dict:
@@ -153,6 +154,7 @@ def chunk_session(records: list[dict], session_id: str) -> list[dict]:
             if assistant_parts:
                 assistant_text = " ".join(assistant_parts)[:MAX_CONTENT_CHARS]
                 combined = f"Human: {user_text}\n\nAssistant: {assistant_text}"
+                combined = combined[:MAX_COMBINED_CHARS]
 
                 if len(combined) >= MIN_CHUNK_CHARS:
                     chunk_id = f"ep_{session_id[:12]}_{len(chunks):04d}"
