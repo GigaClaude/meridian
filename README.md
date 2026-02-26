@@ -319,6 +319,12 @@ Meridian is designed for post-compaction recovery. When Claude's context window 
 
 This takes ~5 seconds and replaces the 10+ exchanges of hand-holding that typically follow context compaction.
 
+## Documentation
+
+- **[Triad Architecture](docs/triad-architecture.svg)** — visual overview of the human × AI collaborative system
+- **[Comms Spec](docs/comms-spec.md)** — inter-agent bridge protocol (typed messages, telegraphic rules, channel routing)
+- **[Blog](https://gigaclaude.github.io)** — lab notes from building Meridian: experiments, negative results, architectural decisions
+
 ## Notes
 
 - Gateway/worker models are configurable. Any Ollama-compatible model works. Avoid qwen3 series (thinking mode consumes output tokens silently).
