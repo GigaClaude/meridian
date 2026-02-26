@@ -12,7 +12,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
@@ -152,7 +152,7 @@ def run_audit():
         "noise": len(results["NOISE"]),
         "uncertain": len(results["UNCERTAIN"]),
         "noise_pct": f"{len(results['NOISE'])/total*100:.1f}%" if total > 0 else "0%",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     report = {

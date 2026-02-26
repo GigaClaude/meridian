@@ -10,7 +10,7 @@ import gzip
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -807,7 +807,7 @@ class StorageLayer:
                 1 if payload.get("volatile") else 0,
                 payload.get("project_id", self.project_id),
                 payload.get("created_at", ""),
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 reason,
             ),
         )
@@ -900,7 +900,7 @@ class StorageLayer:
 
         # Track access for any returned results
         if results:
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             for r in results:
                 await self._db.execute(
                     "UPDATE cold_memories SET access_count = access_count + 1, last_accessed = ? WHERE mem_id = ?",
@@ -922,7 +922,7 @@ class StorageLayer:
         Returns counts of demoted memories.
         """
         pinned = pinned_ids or set()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         demoted = {"volatile": 0, "low_importance": 0, "superseded": 0}
 
         # Scroll through all memories in Qdrant
@@ -1131,7 +1131,7 @@ class StorageLayer:
             payload_updates["importance"] = updates["importance"]
         if "superseded_by" in updates:
             payload_updates["superseded_by"] = updates["superseded_by"]
-        payload_updates["updated_at"] = datetime.utcnow().isoformat()
+        payload_updates["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         try:
             await self.update_memory_payload(memory_id, payload_updates)

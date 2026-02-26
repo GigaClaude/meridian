@@ -27,3 +27,6 @@ testpaths = ["tests"]
 markers = [
     "integration: requires running Qdrant + Ollama services",
 ]
+filterwarnings = [
+    "ignore:datetime.datetime.utcnow:DeprecationWarning",
+]

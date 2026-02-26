@@ -9,7 +9,7 @@ import asyncio
 import hashlib
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import httpx
@@ -238,7 +238,7 @@ Return raw JSON array (no markdown, no code blocks):"""
 
         session = EpisodicSession(
             project_id=storage.project_id,
-            ended_at=datetime.utcnow(),
+            ended_at=datetime.now(timezone.utc),
             summary=summary_data.get("summary", ""),
             key_events=summary_data.get("key_events", []),
             transcript_hash=f"sha256:{transcript_hash[:16]}",
@@ -250,7 +250,7 @@ Return raw JSON array (no markdown, no code blocks):"""
             serializable_messages.append({
                 "role": msg.get("role", "unknown"),
                 "content": msg.get("content", ""),
-                "timestamp": msg.get("timestamp", datetime.utcnow().isoformat()),
+                "timestamp": msg.get("timestamp", datetime.now(timezone.utc).isoformat()),
             })
 
         await storage.store_episode(session, serializable_messages)

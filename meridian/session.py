@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from .schemas import gen_id
@@ -57,7 +57,7 @@ class SessionManager:
 
         self.messages: list[dict] = []
         self.system_prompt: str = ""
-        self.started_at: datetime = datetime.utcnow()
+        self.started_at: datetime = datetime.now(timezone.utc)
         self.message_count: int = 0
         self._checkpoint_nudge_sent: bool = False
 
@@ -83,7 +83,7 @@ class SessionManager:
         self.messages.append({
             "role": role,
             "content": content,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         })
         self.message_count += 1
 
@@ -94,7 +94,7 @@ class SessionManager:
             "tool_name": tool_name,
             "arguments": arguments,
             "result": result[:500],  # Truncate long results
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         })
 
     def should_checkpoint(self) -> bool:
@@ -136,5 +136,5 @@ class SessionManager:
             "project_id": self.project_id,
             "started_at": self.started_at.isoformat(),
             "message_count": self.message_count,
-            "duration_seconds": (datetime.utcnow() - self.started_at).total_seconds(),
+            "duration_seconds": (datetime.now(timezone.utc) - self.started_at).total_seconds(),
         }
