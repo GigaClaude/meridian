@@ -21,17 +21,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("meridian.gateway")
 
-GATEWAY_SYSTEM_PROMPT = """You synthesize memory search results into precise, compressed answers.
+GATEWAY_SYSTEM_PROMPT = """You are a memory retrieval filter. Your job: extract ONLY the facts that answer the question. Discard everything else.
 
-RULES:
-- Compress aggressively. 2000 tokens in → 400 tokens out.
-- Only relevant facts. Skip tangential info entirely.
-- Preserve specifics: exact paths, ports, commands, rationale behind decisions.
-- EVERY fact gets a citation: [mem_xxx]. No citation = don't include it.
-- Newer memories override older ones. Flag conflicts explicitly.
-- Shorter is ALWAYS better. Stop when the question is answered.
-- Write flowing prose. No section headers, no structured reports.
-- For briefings: output YAML only, no prose, no markdown fences."""
+CRITICAL RULES:
+- If a search result doesn't directly answer the query, DROP IT COMPLETELY. Don't mention it.
+- 50-70% of search results will be noise. That's normal. Only include what's relevant.
+- Every fact needs a citation [mem_xxx]. No citation = don't say it.
+- Preserve specifics: paths, ports, commands, rationale.
+- Newer memories override older ones.
+- Shorter is ALWAYS better. When the question is answered, STOP.
+- Flowing prose, no headers or bullet lists.
+- For briefings: YAML only, no prose."""
 
 
 # JSON schema for structured briefing output via Ollama's format parameter.
@@ -118,7 +118,8 @@ def _rerank(results: list[dict]) -> list[dict]:
     """Rerank results by blending vector score with importance and freshness.
 
     Components:
-    - importance boost: importance/50 (0.02 to 0.10)
+    - importance boost: nonlinear, imp5 gets 3x the boost of imp2
+      imp1: +0.01, imp2: +0.03, imp3: +0.05, imp4: +0.08, imp5: +0.12
     - freshness boost: starts at 0.05, decays by 0.001/day (normal) or 0.005/day (volatile)
       Normal:   1d: +0.049, 1w: +0.043, 1mo: +0.02, 50d: +0.0
       Volatile: 1d: +0.045, 3d: +0.035, 1w: +0.015, 10d: +0.0
@@ -126,10 +127,13 @@ def _rerank(results: list[dict]) -> list[dict]:
     Volatile memories (ports, PIDs, temp paths) decay 5x faster — after 10 days
     they get zero freshness boost, making them naturally deprioritized.
     """
+    # Nonlinear importance curve — critical memories get a real advantage
+    IMPORTANCE_BOOST = {1: 0.01, 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12}
+
     now = datetime.now(timezone.utc)
     for r in results:
         importance = r.get("importance", 3)
-        importance_boost = importance / 50
+        importance_boost = IMPORTANCE_BOOST.get(importance, 0.05)
 
         # Volatile memories decay 5x faster
         is_volatile = r.get("volatile", False)
@@ -388,7 +392,7 @@ RAW DATA:
         prompt = f"""Synthesize these search results into a direct answer to the query.
 
 RULES:
-1. ONLY include facts that directly answer the query. Skip tangential results.
+1. RUTHLESSLY filter. If a result doesn't DIRECTLY answer the query, DROP IT. A result about GPU settings is irrelevant to a query about standing orders. Only ~30-50% of search results will be relevant — that's expected.
 2. EVERY fact MUST have an inline citation: "fact [mem_xxx]". No exceptions. If you can't cite it, don't include it.
 3. Preserve rationale: "Chose X because Y" not just "Uses X."
 4. Conflicts: prefer newest (check age field). Flag: "[mem_old] (Xd) says Y but newer [mem_new] (<1h) says Z — using newer."
@@ -397,6 +401,7 @@ RULES:
 7. Write flowing prose. NO section headers, NO bullet lists unless the query asks for a list.
 8. NEVER invent facts not present in the search results below.
 9. VOLATILE results (ports, PIDs, temp paths) may have changed — note this when citing them.
+10. Higher importance results (importance 4-5) are more likely relevant. Lower importance results need a stronger topical match to be worth including.
 
 {context}
 
