@@ -319,15 +319,22 @@ RAW DATA:
             known_tags = await storage.get_all_tags()
             matched_tags = storage._extract_tag_matches(query, known_tags)
 
+        # Exclude episodic ingest from recall — those belong in memory_history
+        exclude_episodic = ["episodic_ingest"]
+
         # Try tag-filtered search first
         tag_filter = matched_tags if matched_tags else None
         raw_results = await storage.search_memories(
             query, limit=10, scope=scope, tag_filter=tag_filter,
+            exclude_sources=exclude_episodic,
         )
 
         # If tag filter returned too few results, fall back to unfiltered
         if tag_filter and len(raw_results) < 3:
-            unfiltered = await storage.search_memories(query, limit=10, scope=scope)
+            unfiltered = await storage.search_memories(
+                query, limit=10, scope=scope,
+                exclude_sources=exclude_episodic,
+            )
             # Merge: dedupe by id, tag-filtered results first
             seen = {r["id"] for r in raw_results}
             for r in unfiltered:

@@ -316,10 +316,17 @@ class StorageLayer:
         project_id: str | None = None,
         tag_filter: list[str] | None = None,
         source_filter: str | None = None,
+        exclude_sources: list[str] | None = None,
     ) -> list[dict]:
-        """Semantic search across memories, optionally filtered by tags and/or source agent."""
+        """Semantic search across memories, optionally filtered by tags and/or source agent.
+
+        Args:
+            exclude_sources: List of source values to exclude from results.
+                Used by recall() to filter out episodic_ingest noise.
+        """
         vector = await self.embed(query)
         filters = []
+        must_not = []
         pid = project_id or self.project_id
         filters.append(FieldCondition(key="project_id", match=MatchValue(value=pid)))
         if scope != "all":
@@ -344,8 +351,19 @@ class StorageLayer:
             filters.append(
                 FieldCondition(key="source", match=MatchValue(value=source_filter))
             )
+        if exclude_sources:
+            for src in exclude_sources:
+                must_not.append(
+                    FieldCondition(key="source", match=MatchValue(value=src))
+                )
 
-        search_filter = Filter(must=filters) if filters else None
+        if filters or must_not:
+            search_filter = Filter(
+                must=filters if filters else None,
+                must_not=must_not if must_not else None,
+            )
+        else:
+            search_filter = None
         results = self.qdrant.query_points(
             collection_name=config.qdrant_collection,
             query=vector,
