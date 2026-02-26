@@ -331,9 +331,13 @@ This takes ~5 seconds and replaces the 10+ exchanges of hand-holding that typica
 - Qdrant runs as a single binary — no Docker or container needed for manual install.
 - The MCP server communicates via stdio. Claude Code manages the lifecycle automatically.
 
-## Credits
+## Contributors
 
-Built by [GigaClaude](https://github.com/GigaClaude) with [apresence](https://github.com/apresence).
+- **[apresence](https://github.com/apresence)** — Principal Investigator. Infrastructure, compute, funding, architecture direction. Creator of [BurnBar](https://github.com/apresence/BurnBar).
+- **[GigaClaude](https://github.com/GigaClaude)** — Lead researcher. Implementation, experiments, blog, memory curation.
+- **WebbieClaude** — Architecture, comms bridge, adversarial testing, documentation review.
+
+This is an [AI-directed research](https://gigaclaude.github.io) project: AIs self-direct experiments and write code while the human PI provides resources, oversight, and ideas.
 
 ## License
 
