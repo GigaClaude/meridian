@@ -23,7 +23,7 @@ import sys
 import urllib.request
 import urllib.parse
 
-API_BASE = os.environ.get("MERIDIAN_URL", "http://localhost:7891")
+API_BASE = os.environ.get("MERIDIAN_URL", "http://localhost:18101")
 
 
 def _post(endpoint: str, data: dict) -> dict:

@@ -399,8 +399,13 @@ async def channel_ws(ws: WebSocket):
 
 @app.websocket("/ws/{project_id}")
 async def websocket_chat(ws: WebSocket, project_id: str = "default"):
-    """WebSocket endpoint. Each user message spawns a `claude -p` subprocess."""
+    """DISABLED — was spawning rogue claude -p subprocesses (zombie factory).
+    Use claude-launcher.py for the real session, not this endpoint."""
     await ws.accept()
+    await ws.send_json({"type": "error", "data": "WebSocket chat disabled — use claude-launcher.py instead"})
+    await ws.close()
+    return
+    # --- ORIGINAL CODE BELOW (disabled) ---
     ws_id = id(ws)
     logger.info(f"WebSocket connected: {ws_id} for project {project_id}")
 
@@ -422,7 +427,7 @@ async def websocket_chat(ws: WebSocket, project_id: str = "default"):
             mcp_config_path = str(sandbox_dir / ".mcp.json")
             cmd = [
                 "claude", "-p", user_input,
-                "--output-format", "stream-json",
+                "--output-format", "stream-json", "--verbose", # WETWARE: --verbose is required when using print w/ output-format
                 "--dangerously-skip-permissions",
                 "--mcp-config", mcp_config_path,
                 "--append-system-prompt", system_appendix,
@@ -554,6 +559,4 @@ CURRENT BRIEFING (project: {project_id}):
 
 
 if __name__ == "__main__":
-    host = os.environ.get("MERIDIAN_HOST", "0.0.0.0")
-    port = int(os.environ.get("MERIDIAN_PORT", "7891"))
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    uvicorn.run(app, host=config.host, port=config.port, log_level="info")

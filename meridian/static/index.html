@@ -395,6 +395,7 @@
   let isWaiting = false;
   let currentAssistantMsg = null;
   let currentAssistantText = '';
+  let waitingTimeout = null;
 
   // ── Markdown config ──
   if (typeof marked !== 'undefined') {
@@ -515,6 +516,7 @@
         inputField.disabled = false;
         sendBtn.disabled = false;
         inputField.focus();
+        if (waitingTimeout) { clearTimeout(waitingTimeout); waitingTimeout = null; }
         break;
 
       case 'error':
@@ -525,6 +527,7 @@
         removeTyping();
         inputField.disabled = false;
         sendBtn.disabled = false;
+        if (waitingTimeout) { clearTimeout(waitingTimeout); waitingTimeout = null; }
         break;
     }
   }
@@ -635,6 +638,18 @@
     inputField.disabled = true;
     sendBtn.disabled = true;
     showTyping();
+
+    // Safety timeout: re-enable input if no response after 5 minutes
+    if (waitingTimeout) clearTimeout(waitingTimeout);
+    waitingTimeout = setTimeout(() => {
+      if (isWaiting) {
+        isWaiting = false;
+        inputField.disabled = false;
+        sendBtn.disabled = false;
+        removeTyping();
+        addSystemMessage('Response timed out (5min). You can send another message.');
+      }
+    }, 300000);
   }
 
   // ── Events ──

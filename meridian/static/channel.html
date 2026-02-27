@@ -209,6 +209,20 @@
     flex-shrink: 0;
   }
 
+  #send-btn {
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 6px 16px;
+    font-family: var(--font);
+    font-size: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  #send-btn:hover { background: #58a6ff; }
+  #send-btn:disabled { background: #30363d; cursor: default; }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -231,6 +245,7 @@
   <div id="input-area">
     <span id="nick-display">chris&gt;</span>
     <input type="text" id="input-field" placeholder="Type a message..." autofocus>
+    <button id="send-btn" onclick="window._send()">Send</button>
   </div>
 </div>
 
@@ -260,6 +275,8 @@
   let ws = null;
   let nick = localStorage.getItem('meridian-nick') || '';
   let reconnectTimer = null;
+  let lastSeenTs = 0;  // Track last message timestamp to avoid duplicates on reconnect
+  let historyLoaded = false;
 
   // Nick colors
   const nickColors = {
@@ -323,7 +340,12 @@
     try {
       const resp = await fetch('/api/channel/history?limit=200');
       const data = await resp.json();
-      (data.messages || []).forEach(m => addMsg(m.sender, m.content, m.ts));
+      const msgs = data.messages || [];
+      msgs.forEach(m => {
+        if (m.ts) lastSeenTs = Math.max(lastSeenTs, m.ts);
+        addMsg(m.sender, m.content, m.ts);
+      });
+      historyLoaded = true;
     } catch (e) {
       console.error('History load failed:', e);
     }
@@ -348,6 +370,9 @@
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
+        // Skip if we already have this message (dedup on reconnect)
+        if (msg.ts && msg.ts <= lastSeenTs) return;
+        if (msg.ts) lastSeenTs = msg.ts;
         addMsg(msg.sender, msg.content, msg.ts);
       } catch (e) {
         console.error('Parse error:', e);
@@ -362,14 +387,28 @@
     ws.onerror = () => {};
   }
 
-  // Send message
+  // Send message via WebSocket only — no HTTP fallback
   function send() {
     const text = inputField.value.trim();
-    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!text) return;
 
-    ws.send(JSON.stringify({ sender: nick, content: text }));
-    inputField.value = '';
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      addSystem('Not connected — cannot send. Reconnecting...');
+      connect();
+      return;
+    }
+
+    try {
+      ws.send(JSON.stringify({ sender: nick, content: text }));
+      inputField.value = '';
+    } catch (e) {
+      addSystem('Send failed: ' + e.message);
+    }
+    inputField.focus();
   }
+
+  // Expose for the Send button onclick
+  window._send = send;
 
   inputField.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -386,7 +425,11 @@
     nickDisplay.className = nickClass(nick);
     nickModal.classList.add('hidden');
     inputField.focus();
-    loadHistory().then(() => connect());
+    if (!historyLoaded) {
+      loadHistory().then(() => connect());
+    } else {
+      connect();
+    }
   }
 
   nickOk.addEventListener('click', () => setNick(nickInput.value));
