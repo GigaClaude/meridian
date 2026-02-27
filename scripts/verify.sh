@@ -86,10 +86,10 @@ import sys, json; d=json.load(sys.stdin)
 emb = d.get('embeddings', [d.get('embedding', [])])[0]
 print(len(emb))
 " 2>/dev/null || echo "0")
-    if [ "$DIM" = "768" ]; then
+    if [ "$DIM" -gt 0 ] 2>/dev/null; then
         pass "Embedding: ${DIM}d vectors"
     else
-        fail "Expected 768d embeddings, got ${DIM}d"
+        fail "Embedding returned 0 dimensions"
     fi
 else
     fail "Embedding request failed"

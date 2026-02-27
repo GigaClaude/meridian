@@ -326,6 +326,20 @@ async def _channel_broadcast(sender: str, content: str) -> dict:
     for d in dead:
         _channel_subscribers.remove(d)
 
+    # Forward to bridge message queue so bridge processes (bridge.py,
+    # meridian_bridge.py) can deliver to Webbie via executor.
+    # Skip if sender is webbie to avoid echo loops.
+    if sender.lower() != "webbie":
+        bridge_msg = {
+            "from": sender,
+            "to": "webbie",
+            "content": f"[#{sender}] {content}",
+            "type": "channel",
+            "ts": ts,
+        }
+        _message_queue.append(bridge_msg)
+        logger.info(f"[channel->bridge] Forwarded to bridge queue for webbie")
+
     logger.info(f"[channel] {sender}: {content[:80]}")
     return entry
 
