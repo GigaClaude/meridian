@@ -181,6 +181,14 @@ class RememberRequest(BaseModel):
     source: str | None = None
 
 
+class CheckpointRequest(BaseModel):
+    task_state: str
+    decisions: list[str] = []
+    warnings: list[str] = []
+    next_steps: list[str] = []
+    working_set: dict | str = ""
+
+
 class MessageRequest(BaseModel):
     """Inter-Claude message: one Claude sends a message, the other polls for it."""
     from_id: str
@@ -232,6 +240,22 @@ async def api_briefing(project_id: str = "default"):
     """Get the current hot memory briefing."""
     briefing = await gateway.assemble_briefing(project_id, storage)
     return {"briefing": briefing}
+
+
+@app.post("/api/checkpoint")
+async def api_checkpoint(req: CheckpointRequest):
+    """Save a session checkpoint. Used by precompact hook and CLI."""
+    working_set = req.working_set if isinstance(req.working_set, dict) else {}
+    result = await storage.checkpoint(
+        {
+            "task_state": req.task_state,
+            "decisions": req.decisions,
+            "warnings": req.warnings,
+            "next_steps": req.next_steps,
+            "working_set": working_set,
+        }
+    )
+    return result
 
 
 @app.post("/api/bridge/send")
