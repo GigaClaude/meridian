@@ -21,7 +21,7 @@ EMBED_MODEL = "mxbai-embed-large"
 COLLECTION = "memories_v2"
 PROJECT_ID = "default"
 
-SIMILARITY_THRESHOLD = 0.70
+SIMILARITY_THRESHOLD = 0.75  # Tuned for mxbai-embed-large (was 0.70 for nomic)
 MAX_RESULTS = 3
 MIN_PROMPT_LENGTH = 10
 
