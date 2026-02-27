@@ -27,3 +27,8 @@ episodes/
 .DS_Store
 Thumbs.db
 recall_quality_report.json
+
+# Runtime artifacts
+.qdrant-initialized
+unsloth_compiled_cache/
+snapshots/
